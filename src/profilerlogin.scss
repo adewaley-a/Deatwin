@@ -1,0 +1,319 @@
+@import url("https://fonts.googleapis.com/css2?family=Russo+One&display=swap");
+
+.bodyl{
+  overflow: hidden;
+  position: relative;
+  padding-bottom: 40px;
+}
+.processing{
+  color: hsl(134, 86%, 51%);
+  font-size: 69%;
+}
+
+.circle-container {
+    $particleNum: 400;
+    $particleColor: hsl(134, 86%, 51%);
+  
+    position: absolute;
+    transform: translateY(-10vh);
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+  
+    .circle {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      mix-blend-mode: screen;
+      background-image: radial-gradient(
+        hsl(134, 86%, 51%),
+        hsl(134, 86%, 51%),
+        hsla(180, 100%, 80%, 0) 56%
+      );
+  
+      animation: fadein-frames 200ms infinite, scale-frames 2s infinite;
+  
+      @keyframes fade-frames {
+        0% {
+          opacity: 1;
+        }
+  
+        50% {
+          opacity: 0.7;
+        }
+  
+        100% {
+          opacity: 1;
+        }
+      }
+  
+      @keyframes scale-frames {
+        0% {
+          transform: scale3d(0.4, 0.4, 1);
+        }
+  
+        50% {
+          transform: scale3d(2.2, 2.2, 1);
+        }
+  
+        100% {
+          transform: scale3d(0.4, 0.4, 1);
+        }
+      }
+    }
+  
+    $particleBaseSize: 8;
+  
+    
+    @for $i from 1 through $particleNum {
+      &:nth-child(#{$i}) {
+        $circleSize: random($particleBaseSize);
+        width: $circleSize + px;
+        height: $circleSize + px;
+  
+        $startPositionY: random(10) + 200;
+        $framesName: "move-frames-" + $i;
+        $moveDuration: random(7000) + ms;
+  
+        animation-name: #{$framesName};
+        animation-duration: $moveDuration;
+        animation-delay: 100 + random(9000) + ms;
+  
+        @keyframes #{$framesName} {
+          from {
+            transform: translate3d(
+              #{random(100) + vw},
+              #{$startPositionY + vh},
+              0
+            );
+          }
+  
+          to {
+            transform: translate3d(
+              #{random(100) + vw},
+              #{- $startPositionY - random(30) + vh},
+              0
+            );
+          }
+        }
+  
+        .circle {
+          animation-delay: random(4000) + ms;
+        }
+      }
+    }
+  }
+
+.logcover{
+    margin: auto;
+    margin-top: 2.5%;
+    width: 40%;
+    padding-left: 9.5%;
+   
+}
+.ptagbot{
+    width:110px;
+    height:110px;
+    margin: auto;
+    margin-top: 0%;
+ }
+ .botcover{
+    width:fit-content;
+    margin: auto;
+    height: fit-content;
+   
+    position: relative;
+    margin-top: 13%;
+ }
+ .pcover{
+  color: hsl(134, 86%, 51%);
+  text-align: center;
+  font-weight: 700;
+  margin: auto;
+  font-size: 280%;
+}
+.pcover{
+  font-family: "Russo One", sans-serif;
+  --bg-size: 400%;
+  --color-one:  rgb(29, 255, 29);
+  --color-two: rgb(162, 255, 165);
+ 
+  background: linear-gradient(
+                90deg,
+                var(--color-one),
+                var(--color-two),
+                var(--color-one),
+                var(--color-one)
+              ) 0 0 / var(--bg-size) 100%;
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: move-bg 9s infinite linear;
+}
+@keyframes move-bg {
+   to {
+     background-position: var(--bg-size) 0;
+   }
+ }
+ 
+
+button{
+    font-family: "Russo One", sans-serif;
+    font-size: 66%;
+    font-weight: 100;
+}
+.sign{
+    background-image: linear-gradient(to right, rgb(19, 19, 19), green);
+    height: 30px;
+}
+
+.pword{
+    height: 30px;
+    margin-left: 5px;
+}
+
+.log{
+    height: 30px;
+}
+.loginaccess{
+    height: 20px;
+    width: 55px;
+    
+}
+.loginaccess:hover {
+  background: rgb(3, 102, 10);
+}
+.gapes{
+    font-family: "Russo One", sans-serif;
+    color:  rgb(29, 255, 29);
+    font-size: 75%;
+}
+.warning{
+    font-size: 60%;
+    margin: auto;
+    text-align: center;
+}
+
+
+@media (max-width:900px){
+
+    .logcover{
+        margin: auto;
+        margin-top: 0.5%;
+        width: 40%;
+        padding-left: 9.5%;
+    }
+    
+    .ptagbot{
+        width:90px;
+        height:90px;
+        margin: auto;
+     }
+     .botcover{
+        width:fit-content;
+        margin: auto;
+        height: fit-content;
+        position: relative;
+        margin-top: 8%;
+     }
+     
+    .loginaccess{
+            display: grid;
+            width: 69.4%;
+            margin-left: 5px;
+            line-height: 30px;
+            height: 30px;
+            border-radius: 3.5px;
+            margin-bottom: 27px;
+    }
+    .sign{
+        background-image: linear-gradient(to right, rgb(19, 19, 19), green);
+        margin-left: 5px;
+        width: 68%;
+        border-radius: 3.5px;
+    }
+    
+    .pword{
+        width: 68%;
+        border-radius: 3.5px;
+    }
+    
+    .log{
+        width: 68%;
+        margin-left: 5px;
+        border-radius: 3.5px;
+    }
+    .gapes{
+        font-family: "Russo One", sans-serif;
+        color:  rgb(29, 255, 29);
+        font-size: 75%;
+        margin-left: 5px;
+    }
+    .gape{
+        
+    }
+
+    .pcover{
+      color: hsl(134, 86%, 51%);
+      text-align: center;
+      font-weight: 700;
+      margin: auto;
+      font-size: 150%;
+      margin-bottom: 26px;
+    }
+
+}
+
+@media (max-width:470px){
+
+    .logcover{
+        margin: auto;
+        margin-top: 0.5%;
+        width: 60%;
+        padding-left: 4.5%;
+    }
+    
+    .ptagbot{
+        width:90px;
+        height:90px;
+        margin: auto;
+     }
+     .botcover{
+        width:fit-content;
+        margin: auto;
+        height: fit-content;
+        position: relative;
+        margin-top: 19%;
+     }
+     
+    .loginaccess{
+            display: grid;
+            width: 71%;
+            margin-left: 5px;
+            line-height: 30px;
+            height: 30px;
+            border-radius: 3.5px;
+            margin-bottom: 27px;
+            width: 88%;
+    }
+    .sign{
+        background-image: linear-gradient(to right, rgb(19, 19, 19), green);
+        margin-left: 5px;
+        width: 86%;
+    }
+    
+    .pword{
+        width: 86%;
+    }
+    
+    .log{
+        margin-left: 5px;
+        width: 86%;
+    }
+    .gapes{
+        font-family: "Russo One", sans-serif;
+        color:  rgb(29, 255, 29);
+        font-size: 75%;
+        margin-left: 5px;
+    }
+
+}

@@ -1,0 +1,757 @@
+body{
+    background-color: rgb(14, 14, 14);
+    
+}
+
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Russo+One&display=swap");
+
+.displaycover{
+    color:  rgb(171, 232, 179);
+    text-align: center;
+    border: 1px solid green;
+    height: fit-content;
+    width: 80%;
+    margin: auto;
+    margin-top: 6px;
+    border-radius: 10px;
+    padding: 10px;
+    padding-top: 0;
+    background: linear-gradient(to bottom right, rgba(0, 128, 0, 0.449), rgba(0, 0, 0, 0.406));
+}
+.plink{
+  border-radius: 3px;
+  width: fit-content;
+  height: fit-content;
+  padding-bottom: 4px;
+  background:  rgb(0, 177, 0) ;
+  border: rgb(0, 177, 0); ;
+  position: absolute;
+  right: 30px;
+  top: 8px;
+}
+#signlink{
+  
+  border: 0px;
+}
+p{
+  line-height: 30px;
+  text-align: center;
+}
+
+.socialcover{
+    display: grid;
+    width: 34%;
+    grid-template-columns: 1fr 1fr;
+    margin: auto;
+}
+
+.socialbtn{
+    border-radius: 6px;
+    display: inline-block;
+    background: rgb(0, 177, 0);
+    margin: 10px 0 0 10px;
+    flex-grow: 1;
+    height: 30px;
+    line-height: 30px;
+    font-size: 95%;
+    color: #ffffff;
+}
+.socialbtn:hover {
+  background: rgb(3, 102, 10);
+}
+.gc{
+    border-radius: 6px;
+    background:  rgb(0, 177, 0);
+    height: 30px;
+    line-height: 30px;
+    width: 34%;
+    margin: auto;
+    margin-bottom: 22px;
+    font-size: 95%;
+    color: #ffffff;
+}
+.gc:hover {
+  background: rgb(3, 102, 10);
+}
+.bot{
+   width: 90px;
+   height: 90px;
+   
+}
+.title{
+    font-size: 95%;
+    margin-bottom: 0;
+ }
+ .name{
+   font-size: 80%;
+   font-family: "Russo One", sans-serif;
+   --bg-size: 400%;
+   --color-one:  rgb(29, 255, 29);
+   --color-two: rgb(162, 255, 165);
+  
+   background: linear-gradient(
+                 90deg,
+                 var(--color-one),
+                 var(--color-two),
+                 var(--color-one),
+                 var(--color-one)
+               ) 0 0 / var(--bg-size) 100%;
+   color: transparent;
+   background-clip: text;
+   -webkit-background-clip: text;
+   animation: move-bg 9s infinite linear;
+ }
+ @keyframes move-bg {
+    to {
+      background-position: var(--bg-size) 0;
+    }
+  }
+  
+ 
+ .swip{
+    width: 34%;
+    margin-bottom: 25px;
+    font-size: 90%;
+    font-family: "Russo One", sans-serif;
+    color: rgb(29, 255, 29) ;
+    font-size: 85%;
+  }
+  .Swiperslide{
+   border-top: 1px solid rgb(0, 177, 0);
+   border-bottom: 1px solid rgb(0, 177, 0);
+  }
+  .birthinput{
+    margin-bottom: 22px;
+    font-size: 90%;
+  }
+  #about{
+   border: 2px solid #008000;
+   background: rgba(0, 0, 0, 0.3);
+   width: 65%;
+   padding: 10px;
+   margin: auto;
+   text-align: center;
+   border-radius: 9px;
+  }
+  .gca{
+    display: grid;
+    width: 34%;
+    grid-template-columns: 1fr 1fr 1fr;
+    margin: auto;
+    margin-top: 15px;
+  }
+  .gco{
+    border-radius: 6px;
+    display: inline-block;
+    background: rgb(0, 177, 0);
+    margin: 10px 0 0 10px;
+    flex-grow: 1;
+    height: 30px;
+    line-height: 30px;
+    font-size: 80%;
+    color: #ffffff;
+    
+}
+.gco:hover {
+  background: rgb(3, 102, 10);
+}
+
+.linkbtn{
+  width: fit-content;
+  width: 45%;
+  border-radius: 6px;
+    display: inline-block;
+    background: rgb(0, 177, 0);
+    margin: 10px 0 0 10px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 90%;
+    color: #ffffff;
+   margin-bottom: 10px;
+}
+.gci{
+    border-radius: 6px;
+    display: inline-block;
+    background: rgba(0, 177, 0, 0.399);
+    margin: 10px 0 0 10px;
+    flex-grow: 1;
+    height: 30px;
+    line-height: 30px;
+    font-size: 95%;
+    color: #ffffff;
+    border: 1px solid white;
+}
+#copy{
+    width: 20px;
+    height: 17px;
+    margin-top: 7.5px;
+}
+.gclink{
+  display: none;
+}
+.sociale{
+  line-height: 8px;
+}
+#URL{
+  text-align: center;
+}
+
+.wallet-container {
+  display: flex;
+  flex-direction: row;
+  /* This ensures the div reduces with the screen width */
+  width: 100%;
+  max-width: 600px; 
+  margin: auto;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  height: 26px;
+  margin-bottom: 10px;
+}
+
+.section {
+  padding: 12px 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 20%;
+}
+
+.label-section {
+  background-color: rgb(0, 177, 0);
+  font-weight: 400;
+  border-right: 1px solid  rgb(0, 164, 0);
+  flex-shrink: 0; /* Prevents "Support us" from squishing */
+  width: 15%;
+  font-size: 70%;
+}
+
+.address-section {
+  background-color:rgba(0, 164, 0, 0.298);
+  color: #f5ff69;
+  font-family: monospace;
+  flex-grow: 1;
+  /* These lines allow the address to shrink and show "..." if too small */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; 
+  font-size: 89%; /* Smoothly scales text size */
+  width: 70%;
+}
+
+.icon-section {
+  background-color:rgb(0, 177, 0);
+  flex-shrink: 0;
+  border-left: 1px solid rgb(0, 164, 0);
+  width: 15%;
+}
+.icon-section:hover {
+  background-color: rgb(12, 114, 12); /* Slightly lighter gray */
+}
+.icon-section:active {
+  background-color: rgb(22, 139, 25);
+  transform: scale(0.75); /* Shrinks the whole div slightly when pressed */
+}
+.capy {
+ margin-bottom: 6px;
+}
+
+@media (max-width: 950px) {
+
+  .plink{
+    border-radius: 3px;
+    width: fit-content;
+    height: fit-content;
+    padding-bottom: 4px;
+    background:  rgb(0, 177, 0) ;
+    border: rgb(0, 177, 0); ;
+    position: absolute;
+    right: 8px;
+    top: 45px;
+  }
+  #signlink{
+    height: 13px;
+    width: 60px;
+    border: 0px;
+    font-size: 70%;
+  }
+ 
+  .displaycover{
+    color:  rgb(171, 232, 179);
+    text-align: center;
+    border: 1px solid green;
+    height: fit-content;
+    width: 80%;
+    margin: auto;
+    margin-top: 5%;
+    border-radius: 10px;
+    padding: 10px;
+    padding-top: 0;
+    background: linear-gradient(to bottom right, rgba(0, 128, 0, 0.449), rgba(0, 0, 0, 0.406));
+}
+.gci{
+ width: 80%;
+ margin: auto;
+ border-radius: 6px;
+ display: inline-block;
+ background: rgba(0, 177, 0, 0.399);
+ margin: 10px 0 0 10px;
+ flex-grow: 1;
+ height: 30px;
+ line-height: 30px;
+ font-size: 95%;
+ color: #ffffff;
+ border: 1px solid white;
+}
+.gca{
+  width: 44%;
+  grid-template-columns: 1fr 1fr 1fr;
+  margin: auto;
+  margin-top: 15px;
+  font-size: 80%;
+ }
+.socialcover{
+  display: grid;
+  width: 44%;
+  grid-template-columns: 1fr 1fr;
+  margin: auto;
+  font-size: 80%;
+}
+.gc{
+  border-radius: 6px;
+    background:  rgb(0, 177, 0);
+    height: 30px;
+    line-height: 30px;
+    width: 44%;
+    margin: auto;
+    margin-bottom: 22px;
+    font-size: 80%;
+    color: #ffffff;
+}
+.name{
+  font-size: 65%;
+}
+.linkbtn{
+  width: fit-content;
+  width: 50%;
+  border-radius: 6px;
+    display: inline-block;
+    background: rgb(0, 177, 0);
+    margin: 10px 0 0 10px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 90%;
+    color: #ffffff;
+}
+
+.wallet-container {
+  display: flex;
+  flex-direction: row;
+  /* This ensures the div reduces with the screen width */
+  width: 100%;
+  max-width: 450px; 
+  margin: auto;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  height: 26px;
+  margin-bottom: 10px;
+}
+
+.section {
+  padding: 12px 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 20%;
+}
+
+.label-section {
+  background-color: rgb(0, 177, 0);
+  font-weight: 600;
+  border-right: 1px solid  rgb(0, 164, 0);
+  flex-shrink: 0; /* Prevents "Support us" from squishing */
+  width: 15%;
+  font-size: 50%;
+}
+
+.address-section {
+  background-color:rgba(0, 164, 0, 0.298);
+  color: #f5ff69;
+  font-family: monospace;
+  flex-grow: 1;
+  /* These lines allow the address to shrink and show "..." if too small */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; 
+  font-size: 76%; /* Smoothly scales text size */
+  width: 70%;
+}
+
+.icon-section {
+  background-color:rgb(0, 177, 0);
+  flex-shrink: 0;
+  border-left: 1px solid rgb(0, 164, 0);
+  width: 15%;
+}
+.icon-section:hover {
+  background-color: rgb(12, 114, 12); /* Slightly lighter gray */
+}
+.icon-section:active {
+  background-color: rgb(22, 139, 25);
+  transform: scale(0.75); /* Shrinks the whole div slightly when pressed */
+}
+.capy {
+ margin-bottom: 6px;
+ height: 5%;
+ width:5px;
+}
+
+}
+
+@media (max-width: 600px){
+
+  .swip{
+    width: 50%;
+  }
+  .plink{
+    border-radius: 3px;
+    width: fit-content;
+    height: fit-content;
+    padding-bottom: 4px;
+    background:  rgb(0, 177, 0) ;
+    border: rgb(0, 177, 0); ;
+    position: absolute;
+    right: 68px;
+    top: 75px;
+  }
+  #signlink{
+    height: 11px;
+    width: 55px;
+    border: 0px;
+    font-size: 70%;
+  }
+  .linkbtn{
+    width: fit-content;
+    width: 55%;
+    border-radius: 6px;
+      display: inline-block;
+      background: rgb(0, 177, 0);
+      margin: 10px 0 0 10px;
+      height: 30px;
+      line-height: 30px;
+      font-size: 80%;
+      color: #ffffff;
+  }
+  .displaycover{
+    color:  rgb(171, 232, 179);
+    text-align: center;
+    border: 1px solid green;
+    height: fit-content;
+    width: 80%;
+    margin: auto;
+    margin-top: 7%;
+    border-radius: 10px;
+    padding: 10px;
+    padding-top: 0;
+    background: linear-gradient(to bottom right, rgba(0, 128, 0, 0.449), rgba(0, 0, 0, 0.406));
+}
+.gci{
+ width: 80%;
+ margin: auto;
+ border-radius: 6px;
+ display: inline-block;
+ background: rgba(0, 177, 0, 0.399);
+ margin: 10px 0 0 10px;
+ flex-grow: 1;
+ height: 30px;
+ line-height: 30px;
+ font-size: 95%;
+ color: #ffffff;
+ border: 1px solid white;
+}
+.gca{
+  width: 50%;
+  grid-template-columns: 1fr 1fr 1fr;
+  margin: auto;
+  margin-top: 15px;
+  font-size: 70%;
+ }
+.socialcover{
+  display: grid;
+  width: 50%;
+  grid-template-columns: 1fr 1fr;
+  margin: auto;
+  font-size: 70%;
+}
+.gc{
+  border-radius: 6px;
+    background:  rgb(0, 177, 0);
+    height: 30px;
+    height: fit-content;
+    line-height: 30px;
+    width: 50%;
+    margin: auto;
+    margin-bottom: 22px;
+    font-size: 70%;
+    color: #ffffff;
+}
+.title{
+  font-size: 85%;
+  margin-bottom: 0;
+}
+.name{
+  font-size:60% ;
+}
+.birthinput{
+  font-size:78% ;
+}
+
+.wallet-container {
+  display: flex;
+  flex-direction: row;
+  /* This ensures the div reduces with the screen width */
+  width: 100%;
+  max-width: 390px; 
+  margin: auto;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  height: 26px;
+  margin-bottom: 10px;
+}
+
+.section {
+  padding: 12px 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 20%;
+}
+
+.label-section {
+  background-color: rgb(0, 177, 0);
+  font-weight: 600;
+  border-right: 1px solid  rgb(0, 164, 0);
+  flex-shrink: 0; /* Prevents "Support us" from squishing */
+  width: 15%;
+  font-size: 50%;
+}
+
+.address-section {
+  background-color:rgba(0, 164, 0, 0.298);
+  color: #f5ff69;
+  font-family: monospace;
+  flex-grow: 1;
+  /* These lines allow the address to shrink and show "..." if too small */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; 
+  font-size: 68%; /* Smoothly scales text size */
+  width: 70%;
+}
+
+.icon-section {
+  background-color:rgb(0, 177, 0);
+  flex-shrink: 0;
+  border-left: 1px solid rgb(0, 164, 0);
+  width: 15%;
+}
+.icon-section:hover {
+  background-color: rgb(12, 114, 12); /* Slightly lighter gray */
+}
+.icon-section:active {
+  background-color: rgb(22, 139, 25);
+  transform: scale(0.75); /* Shrinks the whole div slightly when pressed */
+}
+.capy {
+ margin-bottom: 6px;
+ height: 5%;
+ width:5px;
+}
+
+}
+
+
+@media (max-width: 470px){
+
+  .swip{
+    width: 72%;
+  }
+  .plink{
+    border-radius: 3px;
+    width: fit-content;
+    height: fit-content;
+    padding-bottom: 4px;
+    background:  rgb(0, 177, 0) ;
+    border: rgb(0, 177, 0); ;
+    position: absolute;
+    right: 43px;
+    top: 62px;
+  }
+  #signlink{
+    height: 6px;
+    width: 50px;
+    border: 0px;
+    font-size: 63%;
+    
+  }
+  .linkbtn{
+    width: fit-content;
+    width: 69%;
+    border-radius: 6px;
+      display: inline-block;
+      background: rgb(0, 177, 0);
+      margin: 10px 0 0 10px;
+      height: 30px;
+      line-height: 30px;
+      font-size: 70%;
+      color: #ffffff;
+  }
+  .displaycover{
+    color:  rgb(171, 232, 179);
+    text-align: center;
+    border: 1px solid green;
+    height: fit-content;
+    width: 80%;
+    margin: auto;
+    margin-top: 7%;
+    border-radius: 10px;
+    padding: 10px;
+    padding-top: 0;
+    background: linear-gradient(to bottom right, rgba(0, 128, 0, 0.449), rgba(0, 0, 0, 0.406));
+}
+.gci{
+ width: 80%;
+ margin: auto;
+ border-radius: 6px;
+ display: inline-block;
+ background: rgba(0, 177, 0, 0.399);
+ margin: 10px 0 0 10px;
+ flex-grow: 1;
+ height: 30px;
+ line-height: 30px;
+ font-size: 95%;
+ color: #ffffff;
+ border: 1px solid white;
+}
+.gca{
+  width: 72%;
+  grid-template-columns: 1fr 1fr 1fr;
+  margin: auto;
+  margin-top: 15px;
+  font-size: 70%;
+ }
+.socialcover{
+  display: grid;
+  width: 72%;
+  grid-template-columns: 1fr 1fr;
+  margin: auto;
+  font-size: 70%;
+}
+.gc{
+  border-radius: 6px;
+    background:  rgb(0, 177, 0);
+    height: 30px;
+    height: fit-content;
+    line-height: 30px;
+    width: 72%;
+    margin: auto;
+    margin-bottom: 22px;
+    font-size: 70%;
+    color: #ffffff;
+}
+.title{
+  font-size: 85%;
+  margin-bottom: 0;
+}
+.name{
+  font-size:55% ;
+}
+.birthinput{
+  font-size:78% ;
+}
+
+.wallet-container {
+  display: flex;
+  flex-direction: row;
+  /* This ensures the div reduces with the screen width */
+  width: 100%;
+  max-width: 300px; 
+  margin: auto;
+  background-color: #1a1a1a;
+  border-top: 1px solid rgb(0, 177, 0);
+  border-radius: 0%;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  height: 26px;
+  margin-bottom: 10px;
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+}
+
+.section {
+  padding: 12px 15px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+ border-top-left-radius: 0%;
+}
+
+.label-section {
+  background-color: rgb(0, 177, 0);
+  font-weight: 700;
+  border-right: 1px solid  rgb(0, 164, 0);
+  flex-shrink: 0; /* Prevents "Support us" from squishing */
+  width: 14%;
+  font-size: 49%;
+  border-bottom-left-radius: 18px;
+}
+
+.address-section {
+  background-color:rgba(0, 164, 0, 0.298);
+  color: #f5ff69;
+  font-family: monospace;
+  flex-grow: 1;
+  /* These lines allow the address to shrink and show "..." if too small */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; 
+  font-size: 51%; /* Smoothly scales text size */
+  width: 78%;
+}
+
+.icon-section {
+  background-color:rgb(0, 177, 0);
+  flex-shrink: 0;
+  border-left: 1px solid rgb(0, 164, 0);
+  width: 8%;
+  border-bottom-right-radius: 18px;
+}
+.icon-section:hover {
+  background-color: rgb(12, 114, 12); /* Slightly lighter gray */
+}
+.icon-section:active {
+  background-color: rgb(22, 139, 25);
+  transform: scale(0.75); /* Shrinks the whole div slightly when pressed */
+}
+.capy {
+ margin-bottom: 6px;
+ height: 5%;
+ width:5px;
+}
+
+}
+

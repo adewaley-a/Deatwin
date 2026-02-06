@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "build"
+  functions = "netlify/functions"
+
+[[redirects]]
+  # This ensures React Router works and doesn't 404 on refresh
+  from = "/*"
+  to = "/index.html"
+  status = 200

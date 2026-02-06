@@ -1,0 +1,128 @@
+// src/Notes.js
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { db } from './firebase';
+
+const Notes = () => {
+  const [notes, setNotes] = useState([]);
+  const [newNote, setNewNote] = useState('');
+
+  // Fetch notes from Firestore
+  useEffect(() => {
+    const fetchNotes = async () => {
+      const notesCollection = collection(db, 'notes');
+      const notesSnapshot = await getDocs(notesCollection);
+      const notesList = notesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setNotes(notesList);
+    };
+
+    fetchNotes();
+  }, []);
+
+  // Add a new note to Firestore
+  const handleAddNote = async () => {
+    if (newNote.trim()) {
+      await addDoc(collection(db, 'notes'), { text: newNote });
+      setNewNote('');
+      // Refresh notes
+      const notesSnapshot = await getDocs(collection(db, 'notes'));
+      const notesList = notesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setNotes(notesList);
+    }
+  };
+
+  // Delete a note from Firestore
+  const handleDeleteNote = async (id) => {
+    await deleteDoc(doc(db, 'notes', id));
+    setNotes(notes.filter(note => note.id !== id));
+  };
+
+  return (
+    <div>
+      <h1>Simple Note App</h1>
+      <div>
+        <input
+          type="text"
+          value={newNote}
+          onChange={(e) => setNewNote(e.target.value)}
+          placeholder="Add a new note"
+        />
+        <button onClick={handleAddNote}>Add Note</button>
+      </div>
+      <ul>
+        {notes.map(note => (
+          <li key={note.id}>
+            {note.text}
+            <button onClick={() => handleDeleteNote(note.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default Notes;
+
+
+
+i'vs been unable to share the unique link of my firebase powered profile page with others because it always says 'page not found'
+do i need to do firebase hosting after enabling firestore
+
+sign out code
+ signOut(auth)
+  .then(() => {
+    // Sign-out successful.
+    console.log('User signed out successfully');
+    // Optionally, redirect the user or show a message
+  })
+  .catch((error) => {
+    // An error happened during sign out
+    console.error('Error during sign out:', error);
+  });
+
+
+
+   {see20 ? (
+        <button className='backbtn' onClick={Edit}>
+          Edit
+        </button>
+      ) : null}
+
+
+code for url shortener
+
+      import { getDynamicLink, createDynamicLink } from 'firebase/dynamic-links';
+
+const createShortProfileLink = async (uid) => {
+  const longLink = `https://yourapp.web.app/users/${uid}`; // Long profile link
+
+  const dynamicLink = await createDynamicLink({
+    dynamicLinkInfo: {
+      domainUriPrefix: "https://yourapp.page.link", // The domain you set up in Firebase
+      link: longLink,  // The original long URL
+      androidInfo: {
+        androidPackageName: "com.yourapp.android", // Your Android app package name
+      },
+      iosInfo: {
+        iosBundleId: "com.yourapp.ios",  // Your iOS app bundle ID
+      },
+    },
+    suffix: {
+      option: 'SHORT' // Use 'SHORT' to create a shortened link
+    }
+  });
+
+  return dynamicLink.shortLink; // This will return the shortened URL
+};
+
+// Usage
+const shortLink = await createShortProfileLink(userUid);
+console.log("Shortened profile link:", shortLink);
+
+how to create shorl urls in my react app with the link of the current page if it has a uid 
