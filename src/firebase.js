@@ -1,8 +1,9 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth"; // Add these
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDH3rTYuZb5Vyn7O1qgHiI_rrc0DPawkAc", // Ensure this is a string or your env variable
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY, // Ensure this is a string or your env variable
   authDomain: "deatwin-6f70b.firebaseapp.com",
   projectId: "deatwin-6f70b",
   storageBucket: "deatwin-6f70b.firebasestorage.app",
@@ -14,3 +15,4 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const provider = new GoogleAuthProvider();
+export const db = getFirestore(app);

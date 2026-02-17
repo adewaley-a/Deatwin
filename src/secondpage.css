@@ -1,0 +1,28 @@
+
+.divisionwan{
+    display: flex;
+width: 100%;
+border: 2px solid red;
+height: 60px;
+}
+.divisionwan > div {
+    flex: 1; /* This tells both divs to grow and take up equal space */
+    border: 1px solid blue; /* Just so you can see them */
+}
+
+.divibox {
+    display: flex;
+    width: 100%;
+    border: 2px solid red;
+    min-height: 100vh; /* Takes at least 100% of the screen height */
+}
+.divibox > div {
+    flex: 1; /* This tells both divs to grow and take up equal space */
+    border: 1px solid blue; /* Just so you can see them */
+}
+.divisiontwo{
+    
+}
+.divisionthree{
+    
+}
