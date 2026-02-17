@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase'; 
-import { doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions'; // Add this
+import { getFunctions, httpsCallable } from 'firebase/functions'; 
 import './secondpage.css';
 
 function Login() {
@@ -10,39 +10,50 @@ function Login() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [walletBalance, setWalletBalance] = useState(0); // Track balance
+  const [walletBalance, setWalletBalance] = useState(0); 
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      let unsubscribeSnapshot = () => {};
+
       if (currentUser) {
         setUser(currentUser);
         
-        // Real-time listener for User Data (Balance & Username)
         const userDocRef = doc(db, "users", currentUser.uid);
-        onSnapshot(userDocRef, (doc) => {
-          if (doc.exists()) {
-            setUsername(doc.data().username);
-            setWalletBalance(doc.data().wallet_balance || 0);
+        unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setUsername(docSnap.data().username);
+            setWalletBalance(docSnap.data().wallet_balance || 0);
           }
         });
       }
       setLoading(false);
-    });git
-    return () => unsubscribe();
+
+      // Clean up both the auth listener and the snapshot listener
+      return () => {
+        unsubscribeAuth();
+        unsubscribeSnapshot();
+      };
+    });
+
+    return () => unsubscribeAuth();
   }, []);
 
-  // --- SECURE DEPOSIT (Paystack) ---
   const handleDeposit = () => {
     const amount = prompt("Enter amount to deposit (₦):");
-    if (!amount || isNaN(amount) || amount <= 0) return;
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
+
+    if (!window.PaystackPop) {
+      alert("Paystack SDK not loaded.");
+      return;
+    }
 
     const handler = window.PaystackPop.setup({
-      key: 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', // Replace with your Test Public Key
+      key: process.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', 
       email: user.email,
-      amount: amount * 100, // Naira to Kobo
+      amount: Number(amount) * 100, 
       currency: 'NGN',
       callback: (response) => {
-        // Call the backend to verify the reference
         const functions = getFunctions();
         const verifyPayment = httpsCallable(functions, 'verifyPaystackPayment');
         verifyPayment({ reference: response.reference })
@@ -53,14 +64,13 @@ function Login() {
     handler.openIframe();
   };
 
-  // --- SECURE WITHDRAWAL ---
   const handleWithdraw = () => {
     const amount = prompt("Enter amount to withdraw (₦):");
-    if (!amount || isNaN(amount) || amount <= 0) return;
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
 
     const functions = getFunctions();
     const processWithdraw = httpsCallable(functions, 'processWithdrawal');
-    processWithdraw({ amount: parseInt(amount) })
+    processWithdraw({ amount: parseInt(amount, 10) })
       .then(() => alert("Withdrawal processed!"))
       .catch((err) => alert(err.message));
   };
@@ -78,7 +88,7 @@ function Login() {
         username: input.toLowerCase(),
         displayName: input,
         email: user.email,
-        wallet_balance: 0, // Initialize balance
+        wallet_balance: 0, 
         matches_completed: 0,
         createdAt: new Date()
       });
@@ -104,7 +114,6 @@ function Login() {
         <div className='secwan'>{username || "Guest"}</div>
         <div className='sectwo'>DEATWIN</div>
         <div className='secthree'>
-          {/* Linked to functions */}
           <div className='deposit' onClick={handleDeposit}>+</div>
           <div className='moneybtn'>₦{walletBalance.toLocaleString()}</div>
           <div className='withdraw' onClick={handleWithdraw}>-</div>
