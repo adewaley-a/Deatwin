@@ -112,7 +112,7 @@ function Login() {
 
       <div className="divisionwan">
         <div className='secwan'>{username || "Guest"}</div>
-        <div className='sectwo'>DEATWIN</div>
+        <div className='sectwo'>DEATWINO</div>
         <div className='secthree'>
           <div className='deposit' onClick={handleDeposit}>+</div>
           <div className='moneybtn'>₦{walletBalance.toLocaleString()}</div>
