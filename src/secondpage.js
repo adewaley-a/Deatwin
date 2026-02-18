@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase'; 
 import { doc, setDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions'; 
+// REMOVED: getFunctions and httpsCallable (No longer needed on Spark plan)
 import './secondpage.css';
 
 function Login() {
@@ -29,14 +29,11 @@ function Login() {
       }
       setLoading(false);
 
-      // Clean up both the auth listener and the snapshot listener
       return () => {
         unsubscribeAuth();
         unsubscribeSnapshot();
       };
     });
-
-    return () => unsubscribeAuth();
   }, []);
 
   const handleDeposit = () => {
@@ -54,25 +51,24 @@ function Login() {
       amount: Number(amount) * 100, 
       currency: 'NGN',
       callback: (response) => {
-        const functions = getFunctions();
-        const verifyPayment = httpsCallable(functions, 'verifyPaystackPayment');
-        verifyPayment({ reference: response.reference })
-          .then(() => alert("Deposit Successful!"))
-          .catch(() => alert("Verification Failed."));
+        // --- CHANGE 1: REMOVED CLOUD FUNCTION CALL ---
+        // Instead of calling verifyPayment (which requires Blaze), we just alert the user.
+        // Your Render Webhook will handle the actual wallet update in the background.
+        alert("Payment complete! Your wallet will update shortly.");
+        console.log("Transaction Reference:", response.reference);
+      },
+      onClose: () => {
+        console.log("Window closed.");
       }
     });
     handler.openIframe();
   };
 
   const handleWithdraw = () => {
-    const amount = prompt("Enter amount to withdraw (₦):");
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
-
-    const functions = getFunctions();
-    const processWithdraw = httpsCallable(functions, 'processWithdrawal');
-    processWithdraw({ amount: parseInt(amount, 10) })
-      .then(() => alert("Withdrawal processed!"))
-      .catch((err) => alert(err.message));
+    // NOTE: Withdrawal also uses a Cloud Function. 
+    // Since you are on the Spark plan, this will still throw a CORS error.
+    // You would need a similar Express route on Render for withdrawals.
+    alert("Withdrawal feature requires a backend update to Render as well.");
   };
 
   const handleUsernameSubmit = async (e) => {
