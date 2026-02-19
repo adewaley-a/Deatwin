@@ -44,48 +44,41 @@ function Login() {
     });
   }, []);
 
-  const handleDeposit = () => {
-    // --- STEP 1: GHOST CLEANUP (THE FIX) ---
-    // We search for any leftover Paystack iframe or overlay and destroy them
-    const existingIframe = document.querySelector('iframe[name="paystack-iframe"]');
-    if (existingIframe) {
-        existingIframe.remove();
-    }
-    // Also remove the dim background if Paystack left it behind
-    const existingOverlay = document.querySelector('.paystack-modal-overlay');
-    if (existingOverlay) {
-        existingOverlay.remove();
-    }
+  const paystackHandler = useRef(null);
 
+  const handleDeposit = () => {
+    // 1. If a handler already exists, close it manually before starting a new one
+    if (paystackHandler.current && paystackHandler.current.close) {
+        paystackHandler.current.close();
+    }
+  
     const amount = prompt("Enter amount to deposit (₦):");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
-
-    if (!window.PaystackPop) {
-        return alert("Paystack SDK not loaded. Check your index.html script tag.");
-    }
-
-    const handler = window.PaystackPop.setup({
-      // Your specific public key
+  
+    if (!window.PaystackPop) return alert("SDK not loaded.");
+  
+    // 2. Assign the setup to our 'useRef' so it doesn't get lost in memory
+    paystackHandler.current = window.PaystackPop.setup({
       key: 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', 
       email: user.email,
       amount: Number(amount) * 100, 
       currency: 'NGN',
       callback: (response) => {
-        // --- STEP 2: CALLBACK CLEANUP ---
-        if (handler && typeof handler.close === 'function') {
-            handler.close();
-        }
-        alert("Payment complete! Your wallet will update shortly.");
-        console.log("Transaction Reference:", response.reference);
+        // 3. Clear the ref on success
+        if (paystackHandler.current) paystackHandler.current.close();
+        paystackHandler.current = null; 
+        
+        alert("Payment complete!");
       },
       onClose: () => {
-        console.log("Payment window closed.");
+        // 4. Clear the ref on close
+        paystackHandler.current = null;
+        console.log("Closed.");
       }
     });
-
-    handler.openIframe();
+  
+    paystackHandler.current.openIframe();
   };
-
   const handleWithdraw = async () => {
     if (!user) return;
     
