@@ -45,37 +45,41 @@ function Login() {
   }, []);
 
   const handleDeposit = () => {
+    // --- STEP 1: GHOST CLEANUP (THE FIX) ---
+    // We search for any leftover Paystack iframe or overlay and destroy them
+    const existingIframe = document.querySelector('iframe[name="paystack-iframe"]');
+    if (existingIframe) {
+        existingIframe.remove();
+    }
+    // Also remove the dim background if Paystack left it behind
+    const existingOverlay = document.querySelector('.paystack-modal-overlay');
+    if (existingOverlay) {
+        existingOverlay.remove();
+    }
+
     const amount = prompt("Enter amount to deposit (₦):");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
 
     if (!window.PaystackPop) {
-      alert("Paystack SDK not loaded. Please refresh the page.");
-      return;
+        return alert("Paystack SDK not loaded. Check your index.html script tag.");
     }
 
     const handler = window.PaystackPop.setup({
+      // Your specific public key
       key: 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', 
       email: user.email,
-      amount: Number(amount) * 100, // Paystack expects Kobo
+      amount: Number(amount) * 100, 
       currency: 'NGN',
       callback: (response) => {
-        // --- THE FIX ---
-        // 1. Manually close the popup to clear it from browser memory
+        // --- STEP 2: CALLBACK CLEANUP ---
         if (handler && typeof handler.close === 'function') {
-          handler.close();
+            handler.close();
         }
-        
-        // 2. Clear the iframe from the DOM if Paystack left it behind
-        const paystackIframe = document.getElementsByName("paystack-iframe")[0];
-        if (paystackIframe) {
-          paystackIframe.remove();
-        }
-
         alert("Payment complete! Your wallet will update shortly.");
         console.log("Transaction Reference:", response.reference);
       },
       onClose: () => {
-        console.log("Deposit window closed by user.");
+        console.log("Payment window closed.");
       }
     });
 
@@ -96,7 +100,6 @@ function Login() {
 
       let payload = { userId: user.uid, amount: Number(amount) };
 
-      // Check if user needs to provide bank details
       if (!userData?.paystack_recipient_code) {
         const acc = prompt("Enter 10-digit Account Number:");
         if (!acc || acc.length !== 10) return alert("Valid 10-digit account required.");
@@ -104,14 +107,14 @@ function Login() {
         const bankName = prompt("Enter Bank Name (e.g. GTBank, OPay, Kuda):");
         const selectedBank = NIGERIAN_BANKS.find(b => b.name.toLowerCase() === bankName?.toLowerCase());
         
-        if (!selectedBank) return alert("Bank not supported. Check spelling (e.g., 'GTBank').");
+        if (!selectedBank) return alert("Bank not supported. Please check spelling.");
         
         payload.accountNumber = acc;
         payload.bankCode = selectedBank.code;
       }
 
-      // Replace with your actual Render backend URL
-      const response = await fetch('https://deatwin-server.onrender.com', {
+      // Replace with your actual Render URL
+      const response = await fetch('https://your-backend-url.onrender.com/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -119,13 +122,13 @@ function Login() {
 
       const data = await response.json();
       if (data.success) {
-        alert("Withdrawal successful! Money is on the way.");
+        alert("Withdrawal initiated successfully!");
       } else {
         alert("Withdrawal failed: " + data.message);
       }
     } catch (e) {
-      console.error("Withdrawal Error:", e);
-      alert("Server error. Please try again later.");
+      console.error("Withdrawal error:", e);
+      alert("Error connecting to server.");
     }
   };
 
@@ -145,7 +148,7 @@ function Login() {
         wallet_balance: 0, 
         matches_completed: 0,
         createdAt: new Date()
-      }, { merge: true }); // Merge keeps bank details safe
+      }, { merge: true });
       setUsername(input);
     }
   };
@@ -154,7 +157,6 @@ function Login() {
 
   return (
     <div className="second-container">
-      {/* Username Overlay for new users */}
       {user && !username && (
         <div className="username-overlay">
           <form onSubmit={handleUsernameSubmit} className="username-form">
@@ -177,11 +179,6 @@ function Login() {
           <div className='moneybtn'>₦{walletBalance.toLocaleString()}</div>
           <div className='withdraw' onClick={handleWithdraw}>-</div>
         </div>
-      </div>
-
-      <div className='divibox'>
-        <div className="divisiontwo"></div>
-        <div className="divisionthree"></div>
       </div>
     </div>
   );
