@@ -47,23 +47,38 @@ function Login() {
   const handleDeposit = () => {
     const amount = prompt("Enter amount to deposit (₦):");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
-    if (!window.PaystackPop) return alert("Paystack SDK not loaded.");
+
+    if (!window.PaystackPop) {
+      alert("Paystack SDK not loaded. Please refresh the page.");
+      return;
+    }
 
     const handler = window.PaystackPop.setup({
-      key: process.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', 
+      key: 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', 
       email: user.email,
-      amount: Number(amount) * 100, 
+      amount: Number(amount) * 100, // Paystack expects Kobo
       currency: 'NGN',
       callback: (response) => {
-        // --- FIX: Cleanup the handler to prevent the 'language' null error ---
-        if (handler.close) handler.close();
+        // --- THE FIX ---
+        // 1. Manually close the popup to clear it from browser memory
+        if (handler && typeof handler.close === 'function') {
+          handler.close();
+        }
+        
+        // 2. Clear the iframe from the DOM if Paystack left it behind
+        const paystackIframe = document.getElementsByName("paystack-iframe")[0];
+        if (paystackIframe) {
+          paystackIframe.remove();
+        }
+
         alert("Payment complete! Your wallet will update shortly.");
         console.log("Transaction Reference:", response.reference);
       },
       onClose: () => {
-        console.log("Payment window closed.");
+        console.log("Deposit window closed by user.");
       }
     });
+
     handler.openIframe();
   };
 
