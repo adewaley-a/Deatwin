@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase'; 
 import { doc, setDoc, collection, query, where, getDocs, onSnapshot, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -22,9 +22,7 @@ function Login() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [walletBalance, setWalletBalance] = useState(0); 
-  
-  // Persistent reference to the Paystack handler to prevent memory leaks
-  const paystackHandler = useRef(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -47,63 +45,42 @@ function Login() {
     });
   }, []);
 
-  const handleDeposit = () => {
-    // --- 1. NUCLEAR CLEANUP: Remove any trace of old Paystack sessions ---
-    const killList = [
-      'iframe[name="paystack-iframe"]',
-      '.paystack-modal-overlay',
-      '#paystack-footer',
-      '.paystack-loader'
-    ];
-    killList.forEach(selector => {
-      const el = document.querySelector(selector);
-      if (el) el.remove();
-    });
-
-    // If a handler exists in the ref, close it before making a new one
-    if (paystackHandler.current && paystackHandler.current.close) {
-      paystackHandler.current.close();
-    }
-
+  // --- THE BULLETPROOF DEPOSIT LOGIC ---
+  const handleDeposit = async () => {
     const amount = prompt("Enter amount to deposit (₦):");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
 
-    if (!window.PaystackPop) {
-      alert("SDK not loaded. Please refresh.");
-      return;
+    setIsProcessing(true);
+    try {
+      // 1. Ask your backend for a Paystack URL
+      const response = await fetch('https://deatwin-server.onrender.com/initialize-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          amount: Number(amount)
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        // 2. Redirect the user away from your site to Paystack
+        // This clears the browser memory and avoids ALL "null" errors
+        window.location.href = data.url;
+      } else {
+        alert("Failed to initialize payment.");
+        setIsProcessing(false);
+      }
+    } catch (error) {
+      console.error("Deposit error:", error);
+      alert("Server error. Please try again.");
+      setIsProcessing(false);
     }
-
-    // --- 2. SETUP HANDLER ---
-    paystackHandler.current = window.PaystackPop.setup({
-      key: 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', 
-      email: user.email,
-      amount: Math.round(Number(amount) * 100), // Clean integer
-      currency: 'NGN',
-      callback: (response) => {
-        // Immediate internal cleanup
-        if (paystackHandler.current && paystackHandler.current.close) {
-          paystackHandler.current.close();
-        }
-        paystackHandler.current = null;
-        alert("Payment successful! Your wallet will update shortly.");
-      },
-      onClose: () => {
-        paystackHandler.current = null;
-        console.log("Payment window closed.");
-      }
-    });
-
-    // --- 3. DELAYED OPEN: Prevents the race condition causing the null error ---
-    setTimeout(() => {
-      if (paystackHandler.current) {
-        paystackHandler.current.openIframe();
-      }
-    }, 150);
   };
 
   const handleWithdraw = async () => {
     if (!user) return;
-    
     const amount = prompt("Enter amount to withdraw (₦):");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
     if (Number(amount) > walletBalance) return alert("Insufficient funds!");
@@ -118,32 +95,23 @@ function Login() {
       if (!userData?.paystack_recipient_code) {
         const acc = prompt("Enter 10-digit Account Number:");
         if (!acc || acc.length !== 10) return alert("Valid 10-digit account required.");
-        
         const bankName = prompt("Enter Bank Name (e.g. GTBank, OPay, Kuda):");
         const selectedBank = NIGERIAN_BANKS.find(b => b.name.toLowerCase() === bankName?.toLowerCase());
-        
-        if (!selectedBank) return alert("Bank not supported. Please check spelling.");
-        
+        if (!selectedBank) return alert("Bank not supported.");
         payload.accountNumber = acc;
         payload.bankCode = selectedBank.code;
       }
 
-      // Replace with your actual Render URL
-      const response = await fetch('https://your-backend-url.onrender.com/withdraw', {
+      const response = await fetch('https://deatwin-server.onrender.com/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       const data = await response.json();
-      if (data.success) {
-        alert("Withdrawal initiated successfully!");
-      } else {
-        alert("Withdrawal failed: " + data.message);
-      }
+      alert(data.success ? "Withdrawal initiated!" : "Error: " + data.message);
     } catch (e) {
-      console.error("Withdrawal error:", e);
-      alert("Error connecting to server.");
+      alert("Server error.");
     }
   };
 
@@ -176,11 +144,7 @@ function Login() {
         <div className="username-overlay">
           <form onSubmit={handleUsernameSubmit} className="username-form">
             <h3>Set Your Username</h3>
-            <input 
-              value={input} 
-              onChange={(e) => setInput(e.target.value)} 
-              placeholder="Unique username..." 
-            />
+            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Unique username..." />
             <button type="submit">Claim Name</button>
           </form>
         </div>
@@ -190,7 +154,9 @@ function Login() {
         <div className='secwan'>{username || "Guest"}</div>
         <div className='sectwo'>DEATWINO</div>
         <div className='secthree'>
-          <div className='deposit' onClick={handleDeposit}>+</div>
+          <div className='deposit' onClick={isProcessing ? null : handleDeposit}>
+            {isProcessing ? "..." : "+"}
+          </div>
           <div className='moneybtn'>₦{walletBalance.toLocaleString()}</div>
           <div className='withdraw' onClick={handleWithdraw}>-</div>
         </div>
