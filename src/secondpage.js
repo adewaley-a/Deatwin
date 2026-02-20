@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from './firebase'; 
 import { doc, setDoc, collection, query, where, getDocs, onSnapshot, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -22,6 +22,9 @@ function Login() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [walletBalance, setWalletBalance] = useState(0); 
+  
+  // Persistent reference to the Paystack handler to prevent memory leaks
+  const paystackHandler = useRef(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -44,41 +47,60 @@ function Login() {
     });
   }, []);
 
-  const paystackHandler = useRef(null);
-
   const handleDeposit = () => {
-    // 1. If a handler already exists, close it manually before starting a new one
+    // --- 1. NUCLEAR CLEANUP: Remove any trace of old Paystack sessions ---
+    const killList = [
+      'iframe[name="paystack-iframe"]',
+      '.paystack-modal-overlay',
+      '#paystack-footer',
+      '.paystack-loader'
+    ];
+    killList.forEach(selector => {
+      const el = document.querySelector(selector);
+      if (el) el.remove();
+    });
+
+    // If a handler exists in the ref, close it before making a new one
     if (paystackHandler.current && paystackHandler.current.close) {
-        paystackHandler.current.close();
+      paystackHandler.current.close();
     }
-  
+
     const amount = prompt("Enter amount to deposit (₦):");
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) return;
-  
-    if (!window.PaystackPop) return alert("SDK not loaded.");
-  
-    // 2. Assign the setup to our 'useRef' so it doesn't get lost in memory
+
+    if (!window.PaystackPop) {
+      alert("SDK not loaded. Please refresh.");
+      return;
+    }
+
+    // --- 2. SETUP HANDLER ---
     paystackHandler.current = window.PaystackPop.setup({
       key: 'pk_test_c8808c973c0bcdcbb21c6f0dd83e3a5c889f59c0', 
       email: user.email,
-      amount: Number(amount) * 100, 
+      amount: Math.round(Number(amount) * 100), // Clean integer
       currency: 'NGN',
       callback: (response) => {
-        // 3. Clear the ref on success
-        if (paystackHandler.current) paystackHandler.current.close();
-        paystackHandler.current = null; 
-        
-        alert("Payment complete!");
+        // Immediate internal cleanup
+        if (paystackHandler.current && paystackHandler.current.close) {
+          paystackHandler.current.close();
+        }
+        paystackHandler.current = null;
+        alert("Payment successful! Your wallet will update shortly.");
       },
       onClose: () => {
-        // 4. Clear the ref on close
         paystackHandler.current = null;
-        console.log("Closed.");
+        console.log("Payment window closed.");
       }
     });
-  
-    paystackHandler.current.openIframe();
+
+    // --- 3. DELAYED OPEN: Prevents the race condition causing the null error ---
+    setTimeout(() => {
+      if (paystackHandler.current) {
+        paystackHandler.current.openIframe();
+      }
+    }, 150);
   };
+
   const handleWithdraw = async () => {
     if (!user) return;
     
