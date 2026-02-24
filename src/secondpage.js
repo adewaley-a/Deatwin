@@ -161,6 +161,15 @@ function Login() {
           <div className='withdraw' onClick={handleWithdraw}>-</div>
         </div>
       </div>
+
+        <div className='gamebox'>
+
+            <div className='gamebox1'><div className='ponline'>Play online</div></div>
+
+            <div className='gamebox2'></div>
+
+        </div>
+
     </div>
   );
 }
