@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 // Import your page components
 import Login from './conquerorlogin'; 
 import SecondPage from './secondpage';
+import GamePage from './GamePage';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
 
         {/* This defines the URL for your second page */}
         <Route path="/second-page" element={<SecondPage />} />
+        <Route path="/game/:roomId" element={<GamePage />} />
       </Routes>
     </Router>
   );
