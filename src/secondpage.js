@@ -110,6 +110,7 @@ function Login() {
         const data = snap.data();
         setCurrentRoom({ id: snap.id, ...data });
         if (data.status === "active") {
+          console.log("Room is ACTIVE! Redirecting...");
           window.location.href = `/game/${snap.id}`;
         }
       }
@@ -156,16 +157,32 @@ function Login() {
     });
   };
 
-  // LOCK-IN TRIGGER
+  // --- LOGGING LOCK-IN TRIGGER ---
   useEffect(() => {
     if (currentRoom && currentRoom.status === "negotiating") {
       const voteKeys = Object.keys(currentRoom.votes || {});
       const voteValues = Object.values(currentRoom.votes || {});
+      
       if (voteKeys.length === 2 && voteValues[0] === voteValues[1]) {
+        console.log("LOG: Agreement reached on amount ₦" + voteValues[0]);
+        console.log("LOG: Attempting to lock-in room:", currentRoom.id);
+        
         fetch('https://deatwin-server.onrender.com/lock-in-bet', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ roomId: currentRoom.id, userId: user.uid })
+        })
+        .then(async (res) => {
+          const data = await res.json();
+          if (res.ok) {
+            console.log("LOG: Server successfully locked the bet.");
+          } else {
+            console.error("LOG: Server rejected lock-in:", data.message);
+            alert("Lock-in failed: " + data.message);
+          }
+        })
+        .catch(err => {
+          console.error("LOG: Network error contacting server:", err);
         });
       }
     }
@@ -177,7 +194,7 @@ function Login() {
     <div className="second-container">
       <div className="divisionwan">
         <div className='secwan'>{username || "Guest"}</div>
-        <div className='sectwo'>DEATWINO</div>
+        <div className='sectwo'>DEATWIN</div>
         <div className='secthree'>
           <div className='deposit' onClick={isProcessing ? null : handleDeposit}>
             {isProcessing ? "..." : "+"}
@@ -188,7 +205,6 @@ function Login() {
       </div>
 
       <div className='gamebox'>
-        {/* Play Online Div triggers the modal */}
         <div className='gamebox1' onClick={() => setShowMainModal(true)}>
           <div className='ponline'>Play online</div>
         </div>
@@ -200,7 +216,6 @@ function Login() {
           <div className="modal-content">
             <div className="close-modal" onClick={() => {setShowMainModal(false); setCurrentRoom(null); setActiveSubModal(null);}}>X</div>
             
-            {/* STEP 1: Choose Mode */}
             {!activeSubModal && !currentRoom && (
               <div className="step">
                 <h2>Choose Mode</h2>
@@ -209,7 +224,6 @@ function Login() {
               </div>
             )}
 
-            {/* STEP 2: Private Room Actions */}
             {activeSubModal === 'private' && !currentRoom && (
               <div className="step">
                 <h2>Private Room</h2>
@@ -224,7 +238,6 @@ function Login() {
               </div>
             )}
 
-            {/* STEP 3: Waiting for opponent */}
             {currentRoom && currentRoom.status === "waiting" && (
               <div className="step">
                 <h2>Waiting for opponent...</h2>
@@ -232,7 +245,6 @@ function Login() {
               </div>
             )}
 
-            {/* STEP 4: Price Negotiation */}
             {currentRoom && currentRoom.status === "negotiating" && (
               <div className="step">
                 <h2>Negotiate Stake</h2>
