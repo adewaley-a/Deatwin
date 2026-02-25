@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase'; 
-import { doc, collection, query, where, getDocs, onSnapshot, getDoc, addDoc, updateDoc, limit } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { 
+  doc, collection, query, where, getDocs, onSnapshot, 
+  getDoc, addDoc, updateDoc, limit 
+} from 'firebase/firestore';
+import { 
+  onAuthStateChanged, 
+  setPersistence, 
+  browserSessionPersistence, 
+  signOut 
+} from 'firebase/auth'; // Added persistence imports
 import './secondpage.css';
 
 const NIGERIAN_BANKS = [
@@ -25,22 +33,42 @@ function Login() {
   const [currentRoom, setCurrentRoom] = useState(null);
   const [roomCodeInput, setRoomCodeInput] = useState('');
 
+  // --- PERSISTENCE & AUTH FIX ---
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-      let unsubscribeSnapshot = () => {};
-      if (currentUser) {
-        setUser(currentUser);
-        const userDocRef = doc(db, "users", currentUser.uid);
-        unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setUsername(docSnap.data().username);
-            setWalletBalance(docSnap.data().wallet_balance || 0);
+    let unsubscribeSnapshot = () => {};
+
+    // Force Firebase to use Session Persistence (Tab-based)
+    setPersistence(auth, browserSessionPersistence)
+      .then(() => {
+        return onAuthStateChanged(auth, async (currentUser) => {
+          if (currentUser) {
+            setUser(currentUser);
+            const userDocRef = doc(db, "users", currentUser.uid);
+            
+            // Listen to user data changes
+            unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+              if (docSnap.exists()) {
+                setUsername(docSnap.data().username);
+                setWalletBalance(docSnap.data().wallet_balance || 0);
+              }
+            });
+          } else {
+            // Clear state if user logs out or session expires
+            setUser(null);
+            setUsername('');
+            setWalletBalance(0);
           }
+          setLoading(false);
         });
-      }
-      setLoading(false);
-      return () => { unsubscribeAuth(); unsubscribeSnapshot(); };
-    });
+      })
+      .catch((error) => {
+        console.error("Auth Persistence Error:", error);
+        setLoading(false);
+      });
+
+    return () => {
+      unsubscribeSnapshot();
+    };
   }, []);
 
   // --- 1. DEPOSIT LOGIC ---
@@ -157,7 +185,7 @@ function Login() {
     });
   };
 
-  // --- LOGGING LOCK-IN TRIGGER ---
+  // --- LOCK-IN TRIGGER ---
   useEffect(() => {
     if (currentRoom && currentRoom.status === "negotiating") {
       const voteKeys = Object.keys(currentRoom.votes || {});
@@ -165,7 +193,6 @@ function Login() {
       
       if (voteKeys.length === 2 && voteValues[0] === voteValues[1]) {
         console.log("LOG: Agreement reached on amount ₦" + voteValues[0]);
-        console.log("LOG: Attempting to lock-in room:", currentRoom.id);
         
         fetch('https://deatwin-server.onrender.com/lock-in-bet', {
           method: 'POST',
@@ -188,12 +215,20 @@ function Login() {
     }
   }, [currentRoom, user]);
 
+  const handleLogout = () => {
+    signOut(auth).then(() => {
+        window.location.reload();
+    });
+  };
+
   if (loading) return <div>Loading...</div>;
 
   return (
     <div className="second-container">
       <div className="divisionwan">
-        <div className='secwan'>{username || "Guest"}</div>
+        <div className='secwan' onClick={handleLogout} style={{cursor: 'pointer'}}>
+          {username || "Guest"} (Logout)
+        </div>
         <div className='sectwo'>DEATWIN</div>
         <div className='secthree'>
           <div className='deposit' onClick={isProcessing ? null : handleDeposit}>
@@ -252,7 +287,7 @@ function Login() {
                   {[100, 500, 1000].map(p => (
                     <button 
                       key={p} 
-                      className={currentRoom.votes[user.uid] === p ? 'voted' : ''} 
+                      className={currentRoom.votes && currentRoom.votes[user.uid] === p ? 'voted' : ''} 
                       onClick={() => handleVote(p)}
                     >
                       ₦{p}
