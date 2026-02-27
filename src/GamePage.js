@@ -28,16 +28,15 @@ function GamePage() {
     bullets: [],
     grenades: [],
     lastTap: 0,
-    isCharging: false
+    isCharging: false,
+    shakeIntensity: 0 // For visual screen shake
   });
 
   const remote = useRef(null);
 
-  // --- VICTORY CHECK LOGIC ---
+  // FIX: Removed 'opponentName' to resolve Netlify build error
   const checkVictory = useCallback(async (updatedData) => {
-    // We check the opponent's state to see if the local player won
     const opponentState = isHost ? updatedData.guestState : updatedData.hostState;
-    const opponentName = isHost ? updatedData.guestName : updatedData.hostName;
     const localName = isHost ? updatedData.hostName : updatedData.guestName;
 
     if (opponentState.attacker.hp <= 0 && opponentState.treasure.hp <= 0) {
@@ -63,8 +62,6 @@ function GamePage() {
       const hostFlag = data.hostId === userId.current;
       setIsHost(hostFlag);
       remote.current = hostFlag ? data.guestState : data.hostState;
-
-      // Every time the data updates, check if someone has met the loss conditions
       checkVictory(data);
     });
     return () => unsubscribe();
@@ -75,15 +72,16 @@ function GamePage() {
     const targetRole = isHost ? "guestState" : "hostState";
     const selfRole = isHost ? "hostState" : "guestState";
 
+    // Trigger local shake effect
+    local.current.shakeIntensity = 10;
+
     try {
       if (isHeal) {
         await updateDoc(roomRef, { [`${selfRole}.attacker.hp`]: increment(amount) });
       } else {
-        // Fetch current values to ensure we don't go below 0
         const snap = await getDoc(roomRef);
         const currentHp = snap.data()[targetRole][target].hp;
         const newHp = Math.max(0, currentHp - amount);
-        
         await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: newHp });
       }
     } catch (err) {
@@ -114,10 +112,21 @@ function GamePage() {
     let loop;
 
     const update = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
       const l = local.current;
       const r = remote.current;
 
+      // SCREEN SHAKE LOGIC
+      ctx.save();
+      if (l.shakeIntensity > 0) {
+        const dx = (Math.random() - 0.5) * l.shakeIntensity;
+        const dy = (Math.random() - 0.5) * l.shakeIntensity;
+        ctx.translate(dx, dy);
+        l.shakeIntensity *= 0.9; // Decay the shake
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Bullet Physics
       l.bullets.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         if (b.x < 0 || b.x > canvas.width) {
@@ -148,6 +157,7 @@ function GamePage() {
       ctx.fillRect(0, -5, 40, 10);
       ctx.restore();
 
+      ctx.restore(); // End Shake
       loop = requestAnimationFrame(update);
     };
 
