@@ -4,7 +4,6 @@ import { db } from './firebase';
 import { doc, onSnapshot, updateDoc, increment, getDoc } from 'firebase/firestore';
 import './GamePage.css';
 
-// Persistent Unique ID logic for gameplay perspective
 const getUserId = () => {
   let id = localStorage.getItem('game_user_id');
   if (!id) {
@@ -23,19 +22,33 @@ function GamePage() {
   const userId = useRef(getUserId());
   
   const local = useRef({
-    attacker: { x: 250, y: 700, hp: 400, angle: -Math.PI / 2 },
-    shield: { x: 250, y: 650, hp: 150 },
-    treasure: { x: 250, y: 750, hp: 200 },
+    attacker: { x: 200, y: 600, hp: 400, angle: -Math.PI / 2 },
+    shield: { x: 200, y: 500, hp: 150 },
+    treasure: { x: 200, y: 700, hp: 200 },
     bullets: [],
-    grenades: [],
     lastTap: 0,
     isCharging: false,
-    shakeIntensity: 0
+    activeSprite: null,
+    dragOffset: { x: 0, y: 0 }
   });
 
   const remote = useRef(null);
 
-  // FIXED: Removed unused 'opponentName' to satisfy Netlify Build
+  const sync = useCallback(async () => {
+    const role = isHost ? "hostState" : "guestState";
+    try {
+      await updateDoc(doc(db, "rooms", roomId), {
+        [role]: { 
+          attacker: local.current.attacker,
+          shield: local.current.shield,
+          treasure: local.current.treasure,
+        } 
+      });
+    } catch (err) {
+      console.error("Sync Error:", err);
+    }
+  }, [isHost, roomId]);
+
   const checkVictory = useCallback(async (updatedData) => {
     const opponentState = isHost ? updatedData.guestState : updatedData.hostState;
     const localName = isHost ? updatedData.hostName : updatedData.guestName;
@@ -52,18 +65,15 @@ function GamePage() {
     const unsubscribe = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       const data = snap.data();
       if (!data) return;
-      
       if (data.winner) {
-        alert(`GAME OVER! ${data.winner} is the Champion!`);
+        alert(`GAME OVER! ${data.winner} wins!`);
         navigate('/');
         return;
       }
-
       setGameData(data);
       const hostFlag = data.hostId === userId.current;
       setIsHost(hostFlag);
       remote.current = hostFlag ? data.guestState : data.hostState;
-      
       checkVictory(data);
     });
     return () => unsubscribe();
@@ -73,90 +83,97 @@ function GamePage() {
     const roomRef = doc(db, "rooms", roomId);
     const targetRole = isHost ? "guestState" : "hostState";
     const selfRole = isHost ? "hostState" : "guestState";
-
-    local.current.shakeIntensity = 10; // Trigger local visual feedback
-
     try {
       if (isHeal) {
         await updateDoc(roomRef, { [`${selfRole}.attacker.hp`]: increment(amount) });
       } else {
         const snap = await getDoc(roomRef);
-        const currentHp = snap.data()[targetRole][target].hp;
-        const newHp = Math.max(0, currentHp - amount);
-        await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: newHp });
+        const currentData = snap.data();
+        if (currentData && currentData[targetRole]) {
+          const currentHp = currentData[targetRole][target].hp;
+          await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: Math.max(0, currentHp - amount) });
+        }
       }
-    } catch (err) {
-      console.error("Damage Sync Error:", err);
-    }
+    } catch (err) { console.error(err); }
   }, [isHost, roomId]);
 
-  const sync = useCallback(async () => {
-    const role = isHost ? "hostState" : "guestState";
-    try {
-      await updateDoc(doc(db, "rooms", roomId), {
-        [role]: { 
-          attacker: local.current.attacker,
-          shield: local.current.shield,
-          treasure: local.current.treasure,
-          grenades: local.current.grenades
-        } 
-      });
-    } catch (err) {
-      console.error("Sync Error:", err);
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    const rect = canvasRef.current.getBoundingClientRect();
+    const tx = touch.clientX - rect.left;
+    const ty = touch.clientY - rect.top;
+    const l = local.current;
+
+    const hit = (s, r) => Math.sqrt((tx - s.x)**2 + (ty - s.y)**2) < r;
+
+    if (hit(l.attacker, 40)) l.activeSprite = 'attacker';
+    else if (hit(l.shield, 50)) l.activeSprite = 'shield';
+    else if (hit(l.treasure, 30)) l.activeSprite = 'treasure';
+
+    if (l.activeSprite) {
+      l.dragOffset.x = tx - l[l.activeSprite].x;
+      l.dragOffset.y = ty - l[l.activeSprite].y;
     }
-  }, [isHost, roomId]);
+  };
+
+  const handleTouchMove = (e) => {
+    const touch = e.touches[0];
+    const rect = canvasRef.current.getBoundingClientRect();
+    const l = local.current;
+    const canvas = canvasRef.current;
+    
+    if (l.activeSprite) {
+      let newX = (touch.clientX - rect.left) - l.dragOffset.x;
+      let newY = (touch.clientY - rect.top) - l.dragOffset.y;
+
+      // BOUNDARIES: Keep within player's bottom half
+      newX = Math.max(30, Math.min(canvas.width - 30, newX));
+      newY = Math.max(canvas.height / 2 + 50, Math.min(canvas.height - 30, newY));
+
+      l[l.activeSprite].x = newX;
+      l[l.activeSprite].y = newY;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (local.current.activeSprite) {
+      sync();
+      local.current.activeSprite = null;
+    }
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     let loop;
 
     const render = () => {
       const l = local.current;
       const r = remote.current;
-
-      ctx.save();
-      // Apply Screen Shake
-      if (l.shakeIntensity > 0) {
-        ctx.translate((Math.random() - 0.5) * l.shakeIntensity, (Math.random() - 0.5) * l.shakeIntensity);
-        l.shakeIntensity *= 0.9;
-      }
-
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Bullet Collision Engine
-      l.bullets.forEach((b, i) => {
-        b.x += b.vx; b.y += b.vy;
-        if (b.x < 0 || b.x > canvas.width) {
-          b.vx *= -0.8;
-          b.damage = Math.max(0, b.damage - 1);
-        }
-        if (r && b.y < 200) {
-          const distToShield = Math.sqrt((b.x - r.shield.x)**2 + (b.y - 100)**2);
-          if (distToShield < 45 && r.shield.hp > 0) {
-            applyDamage("shield", b.damage);
-            l.bullets.splice(i, 1);
-          } else if (Math.abs(b.x - r.treasure.x) < 20 && b.y < 80) {
-            applyDamage("treasure", b.damage);
-            applyDamage("attacker", 2, true); 
-            l.bullets.splice(i, 1);
-          } else if (Math.abs(b.x - r.attacker.x) < 20 && b.y < 50) {
-            applyDamage("attacker", b.damage);
-            l.bullets.splice(i, 1);
-          }
-        }
-      });
+      // --- Draw Local ---
+      ctx.beginPath();
+      ctx.arc(l.shield.x, l.shield.y, 40, Math.PI, 0);
+      ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 5; ctx.stroke();
+      
+      ctx.fillStyle = "#ffd700";
+      ctx.fillRect(l.treasure.x - 15, l.treasure.y - 15, 30, 30);
 
-      // Simple Rendering (Attacker)
-      ctx.fillStyle = l.attacker.hp > 0 ? "#33ff33" : "#444";
       ctx.save();
       ctx.translate(l.attacker.x, l.attacker.y);
       ctx.rotate(l.attacker.angle);
+      ctx.fillStyle = "#33ff33";
       ctx.fillRect(0, -5, 40, 10);
       ctx.restore();
 
-      ctx.restore();
+      // --- Draw Remote (Opponent) ---
+      if (r) {
+        ctx.fillStyle = "red"; ctx.fillRect(r.attacker.x - 20, 50, 40, 20);
+        ctx.beginPath(); ctx.arc(r.shield.x, 80, 40, 0, Math.PI);
+        ctx.strokeStyle = "red"; ctx.stroke();
+      }
+
       loop = requestAnimationFrame(render);
     };
 
@@ -166,21 +183,12 @@ function GamePage() {
 
   return (
     <div className="game-screen" 
-      onTouchStart={(e) => {
-        const now = Date.now();
-        if (now - local.current.lastTap < 300) local.current.isCharging = true;
-        local.current.lastTap = now;
-      }}
-      onTouchEnd={() => {
-        if (local.current.isCharging) sync();
-        local.current.isCharging = false;
-      }}>
+      onTouchStart={handleTouchStart} 
+      onTouchMove={handleTouchMove} 
+      onTouchEnd={handleTouchEnd}>
       
       <div className="hp-hud">
         <div className="prize-display">₦{gameData?.prizePool || 0}</div>
-        <div className="status-text">
-            OPPONENT: {remote.current?.attacker.hp || 0} HP | {remote.current?.treasure.hp || 0} BOX
-        </div>
         <div className="bar-container">
             <div className="bar"><div className="fill red" style={{width: `${(remote.current?.attacker.hp / 400) * 100}%`}}></div></div>
             <div className="bar"><div className="fill green" style={{width: `${(local.current.attacker.hp / 400) * 100}%`}}></div></div>
