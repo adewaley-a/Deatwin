@@ -4,6 +4,7 @@ import { db } from './firebase';
 import { doc, onSnapshot, updateDoc, increment, getDoc } from 'firebase/firestore';
 import './GamePage.css';
 
+// Persistent Unique ID logic for gameplay perspective
 const getUserId = () => {
   let id = localStorage.getItem('game_user_id');
   if (!id) {
@@ -29,17 +30,17 @@ function GamePage() {
     grenades: [],
     lastTap: 0,
     isCharging: false,
-    shakeIntensity: 0 // For visual screen shake
+    shakeIntensity: 0
   });
 
   const remote = useRef(null);
 
-  // FIX: Removed 'opponentName' to resolve Netlify build error
+  // FIXED: Removed unused 'opponentName' to satisfy Netlify Build
   const checkVictory = useCallback(async (updatedData) => {
     const opponentState = isHost ? updatedData.guestState : updatedData.hostState;
     const localName = isHost ? updatedData.hostName : updatedData.guestName;
 
-    if (opponentState.attacker.hp <= 0 && opponentState.treasure.hp <= 0) {
+    if (opponentState && opponentState.attacker.hp <= 0 && opponentState.treasure.hp <= 0) {
       await updateDoc(doc(db, "rooms", roomId), {
         winner: localName,
         status: "finished"
@@ -62,6 +63,7 @@ function GamePage() {
       const hostFlag = data.hostId === userId.current;
       setIsHost(hostFlag);
       remote.current = hostFlag ? data.guestState : data.hostState;
+      
       checkVictory(data);
     });
     return () => unsubscribe();
@@ -72,8 +74,7 @@ function GamePage() {
     const targetRole = isHost ? "guestState" : "hostState";
     const selfRole = isHost ? "hostState" : "guestState";
 
-    // Trigger local shake effect
-    local.current.shakeIntensity = 10;
+    local.current.shakeIntensity = 10; // Trigger local visual feedback
 
     try {
       if (isHeal) {
@@ -111,22 +112,20 @@ function GamePage() {
     const ctx = canvas.getContext('2d');
     let loop;
 
-    const update = () => {
+    const render = () => {
       const l = local.current;
       const r = remote.current;
 
-      // SCREEN SHAKE LOGIC
       ctx.save();
+      // Apply Screen Shake
       if (l.shakeIntensity > 0) {
-        const dx = (Math.random() - 0.5) * l.shakeIntensity;
-        const dy = (Math.random() - 0.5) * l.shakeIntensity;
-        ctx.translate(dx, dy);
-        l.shakeIntensity *= 0.9; // Decay the shake
+        ctx.translate((Math.random() - 0.5) * l.shakeIntensity, (Math.random() - 0.5) * l.shakeIntensity);
+        l.shakeIntensity *= 0.9;
       }
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Bullet Physics
+      // Bullet Collision Engine
       l.bullets.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         if (b.x < 0 || b.x > canvas.width) {
@@ -149,7 +148,7 @@ function GamePage() {
         }
       });
 
-      // Rendering Attacker
+      // Simple Rendering (Attacker)
       ctx.fillStyle = l.attacker.hp > 0 ? "#33ff33" : "#444";
       ctx.save();
       ctx.translate(l.attacker.x, l.attacker.y);
@@ -157,11 +156,11 @@ function GamePage() {
       ctx.fillRect(0, -5, 40, 10);
       ctx.restore();
 
-      ctx.restore(); // End Shake
-      loop = requestAnimationFrame(update);
+      ctx.restore();
+      loop = requestAnimationFrame(render);
     };
 
-    update();
+    render();
     return () => cancelAnimationFrame(loop);
   }, [isHost, applyDamage]);
 
@@ -180,7 +179,7 @@ function GamePage() {
       <div className="hp-hud">
         <div className="prize-display">₦{gameData?.prizePool || 0}</div>
         <div className="status-text">
-            Opponent: {remote.current?.attacker.hp || 0} HP | {remote.current?.treasure.hp || 0} BOX
+            OPPONENT: {remote.current?.attacker.hp || 0} HP | {remote.current?.treasure.hp || 0} BOX
         </div>
         <div className="bar-container">
             <div className="bar"><div className="fill red" style={{width: `${(remote.current?.attacker.hp / 400) * 100}%`}}></div></div>
