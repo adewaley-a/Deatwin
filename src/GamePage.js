@@ -22,10 +22,11 @@ function GamePage() {
   const userId = useRef(getUserId());
   
   const local = useRef({
-    attacker: { x: 200, y: 600, hp: 400, angle: -Math.PI / 2 },
-    shield: { x: 200, y: 500, hp: 150 },
-    treasure: { x: 200, y: 700, hp: 200 },
+    attacker: { x: 300, y: 700, hp: 400, angle: -Math.PI / 2 },
+    shield: { x: 250, y: 600, hp: 150 },
+    treasure: { x: 100, y: 750, hp: 200 },
     bullets: [],
+    grenades: [],
     lastTap: 0,
     isCharging: false,
     activeSprite: null,
@@ -34,6 +35,7 @@ function GamePage() {
 
   const remote = useRef(null);
 
+  // Syncs movement to Firebase so the opponent sees it
   const sync = useCallback(async () => {
     const role = isHost ? "hostState" : "guestState";
     try {
@@ -42,60 +44,43 @@ function GamePage() {
           attacker: local.current.attacker,
           shield: local.current.shield,
           treasure: local.current.treasure,
+          grenades: local.current.grenades
         } 
       });
-    } catch (err) {
-      console.error("Sync Error:", err);
-    }
+    } catch (err) { console.error("Sync Error:", err); }
   }, [isHost, roomId]);
 
-  const checkVictory = useCallback(async (updatedData) => {
-    const opponentState = isHost ? updatedData.guestState : updatedData.hostState;
-    const localName = isHost ? updatedData.hostName : updatedData.guestName;
-
-    if (opponentState && opponentState.attacker.hp <= 0 && opponentState.treasure.hp <= 0) {
-      await updateDoc(doc(db, "rooms", roomId), {
-        winner: localName,
-        status: "finished"
-      });
-    }
-  }, [isHost, roomId]);
-
+  // Handle Real-time Listeners
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       const data = snap.data();
       if (!data) return;
-      if (data.winner) {
-        alert(`GAME OVER! ${data.winner} wins!`);
-        navigate('/');
-        return;
-      }
+      if (data.winner) { alert(`${data.winner} Wins!`); navigate('/'); return; }
       setGameData(data);
       const hostFlag = data.hostId === userId.current;
       setIsHost(hostFlag);
+      // Remote data is the "other" player's state
       remote.current = hostFlag ? data.guestState : data.hostState;
-      checkVictory(data);
     });
     return () => unsubscribe();
-  }, [roomId, navigate, checkVictory]);
+  }, [roomId, navigate]);
 
-  const applyDamage = useCallback(async (target, amount, isHeal = false) => {
-    const roomRef = doc(db, "rooms", roomId);
-    const targetRole = isHost ? "guestState" : "hostState";
-    const selfRole = isHost ? "hostState" : "guestState";
-    try {
-      if (isHeal) {
-        await updateDoc(roomRef, { [`${selfRole}.attacker.hp`]: increment(amount) });
-      } else {
-        const snap = await getDoc(roomRef);
-        const currentData = snap.data();
-        if (currentData && currentData[targetRole]) {
-          const currentHp = currentData[targetRole][target].hp;
-          await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: Math.max(0, currentHp - amount) });
-        }
+  // Automatic Bullet Firing (Constantly unless charging grenade)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const l = local.current;
+      if (!l.isCharging && l.attacker.hp > 0) {
+        l.bullets.push({
+          x: l.attacker.x,
+          y: l.attacker.y,
+          vx: Math.cos(l.attacker.angle) * 8,
+          vy: Math.sin(l.attacker.angle) * 8,
+          active: true
+        });
       }
-    } catch (err) { console.error(err); }
-  }, [isHost, roomId]);
+    }, 400); // Shoot every 400ms
+    return () => clearInterval(interval);
+  }, []);
 
   const handleTouchStart = (e) => {
     const touch = e.touches[0];
@@ -106,40 +91,40 @@ function GamePage() {
 
     const hit = (s, r) => Math.sqrt((tx - s.x)**2 + (ty - s.y)**2) < r;
 
-    if (hit(l.attacker, 40)) l.activeSprite = 'attacker';
-    else if (hit(l.shield, 50)) l.activeSprite = 'shield';
-    else if (hit(l.treasure, 30)) l.activeSprite = 'treasure';
+    if (hit(l.attacker, 50)) l.activeSprite = 'attacker';
+    else if (hit(l.shield, 60)) l.activeSprite = 'shield';
+    else if (hit(l.treasure, 40)) l.activeSprite = 'treasure';
 
     if (l.activeSprite) {
       l.dragOffset.x = tx - l[l.activeSprite].x;
       l.dragOffset.y = ty - l[l.activeSprite].y;
     }
+
+    const now = Date.now();
+    if (now - l.lastTap < 300 && l.activeSprite === 'attacker') l.isCharging = true;
+    l.lastTap = now;
   };
 
   const handleTouchMove = (e) => {
     const touch = e.touches[0];
     const rect = canvasRef.current.getBoundingClientRect();
     const l = local.current;
-    const canvas = canvasRef.current;
-    
     if (l.activeSprite) {
-      let newX = (touch.clientX - rect.left) - l.dragOffset.x;
-      let newY = (touch.clientY - rect.top) - l.dragOffset.y;
-
-      // BOUNDARIES: Keep within player's bottom half
-      newX = Math.max(30, Math.min(canvas.width - 30, newX));
-      newY = Math.max(canvas.height / 2 + 50, Math.min(canvas.height - 30, newY));
-
-      l[l.activeSprite].x = newX;
-      l[l.activeSprite].y = newY;
+      const tx = touch.clientX - rect.left;
+      const ty = touch.clientY - rect.top;
+      l[l.activeSprite].x = tx - l.dragOffset.x;
+      l[l.activeSprite].y = ty - l.dragOffset.y;
+      sync(); // Real-time sync of dragging
     }
   };
 
   const handleTouchEnd = () => {
-    if (local.current.activeSprite) {
-      sync();
-      local.current.activeSprite = null;
+    if (local.current.isCharging) {
+      // Logic for throwing grenade would go here
+      local.current.isCharging = false;
     }
+    local.current.activeSprite = null;
+    sync();
   };
 
   useEffect(() => {
@@ -150,58 +135,70 @@ function GamePage() {
     const render = () => {
       const l = local.current;
       const r = remote.current;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const W = canvas.width;
+      const H = canvas.height;
 
-      // --- Draw Local ---
+      ctx.clearRect(0, 0, W, H);
+
+      // --- 1. DRAW REMOTE OPPONENT (Mirrored at Top) ---
+      if (r) {
+        // Opponent Attacker (Flipped Y)
+        ctx.fillStyle = "red";
+        ctx.fillRect(r.attacker.x - 20, H - r.attacker.y - 20, 40, 40);
+        
+        // Opponent Shield (Flipped Arc)
+        ctx.beginPath();
+        ctx.arc(r.shield.x, H - r.shield.y, 50, 0, Math.PI);
+        ctx.strokeStyle = "red"; ctx.lineWidth = 4; ctx.stroke();
+
+        // Opponent Treasure
+        ctx.strokeRect(r.treasure.x - 20, H - r.treasure.y - 20, 40, 40);
+      }
+
+      // --- 2. DRAW LOCAL PLAYER (Bottom) ---
+      // Curved Shield
       ctx.beginPath();
-      ctx.arc(l.shield.x, l.shield.y, 40, Math.PI, 0);
+      ctx.arc(l.shield.x, l.shield.y, 50, Math.PI, 0);
       ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 5; ctx.stroke();
-      
-      ctx.fillStyle = "#ffd700";
-      ctx.fillRect(l.treasure.x - 15, l.treasure.y - 15, 30, 30);
 
+      // Treasure Box
+      ctx.fillStyle = "#ffd700";
+      ctx.fillRect(l.treasure.x - 25, l.treasure.y - 15, 50, 30);
+
+      // Attacker Turret
       ctx.save();
       ctx.translate(l.attacker.x, l.attacker.y);
       ctx.rotate(l.attacker.angle);
-      ctx.fillStyle = "#33ff33";
-      ctx.fillRect(0, -5, 40, 10);
+      ctx.fillStyle = l.isCharging ? "orange" : "#33ff33";
+      ctx.fillRect(0, -10, 50, 20); // The barrel
       ctx.restore();
 
-      // --- Draw Remote (Opponent) ---
-      if (r) {
-        ctx.fillStyle = "red"; ctx.fillRect(r.attacker.x - 20, 50, 40, 20);
-        ctx.beginPath(); ctx.arc(r.shield.x, 80, 40, 0, Math.PI);
-        ctx.strokeStyle = "red"; ctx.stroke();
-      }
+      // Bullets
+      l.bullets.forEach((b, i) => {
+        b.x += b.vx; b.y += b.vy;
+        ctx.fillStyle = "white";
+        ctx.fillRect(b.x - 2, b.y - 2, 4, 10);
+        if (b.y < 0) l.bullets.splice(i, 1);
+      });
 
       loop = requestAnimationFrame(render);
     };
 
     render();
     return () => cancelAnimationFrame(loop);
-  }, [isHost, applyDamage]);
+  }, []);
 
   return (
-    <div className="game-screen" 
-      onTouchStart={handleTouchStart} 
-      onTouchMove={handleTouchMove} 
-      onTouchEnd={handleTouchEnd}>
-      
-      <div className="hp-hud">
-        <div className="prize-display">₦{gameData?.prizePool || 0}</div>
-        <div className="bar-container">
-            <div className="bar"><div className="fill red" style={{width: `${(remote.current?.attacker.hp / 400) * 100}%`}}></div></div>
-            <div className="bar"><div className="fill green" style={{width: `${(local.current.attacker.hp / 400) * 100}%`}}></div></div>
-        </div>
+    <div className="game-screen" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+      <div className="hp-header">
+         {/* HP Bars per your sketch */}
+         <div className="player-stats">Player A: {local.current.attacker.hp}HP | {local.current.treasure.hp}HP</div>
+         <div className="player-stats">Player B: {remote.current?.attacker.hp || 400}HP | {remote.current?.treasure.hp || 200}HP</div>
       </div>
-
       <canvas ref={canvasRef} width={window.innerWidth} height={window.innerHeight - 150} />
-      
-      <div className="controls">
-        <input type="range" min="-3.14" max="0" step="0.01" onChange={(e) => {
-          local.current.attacker.angle = parseFloat(e.target.value);
-          sync();
-        }} />
+      <div className="angle-control">
+         <input type="range" min="-3.14" max="0" step="0.01" value={local.current.attacker.angle}
+          onChange={(e) => { local.current.attacker.angle = parseFloat(e.target.value); sync(); }} />
       </div>
     </div>
   );

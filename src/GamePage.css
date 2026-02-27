@@ -1,3 +1,4 @@
+/* 1. Global Setup */
 .game-screen {
   background: #050508;
   height: 100vh;
@@ -5,47 +6,53 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  touch-action: none;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  touch-action: none; /* Prevents browser scroll/refresh while dragging sprites */
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
 }
 
-/* Header & HUD */
-.hp-hud {
-  padding: 15px;
-  background: rgba(0, 0, 0, 0.85);
-  border-bottom: 1px solid #333;
+/* 2. Header UI: HP & Prize Info */
+.hp-header {
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.95);
+  border-bottom: 2px solid #333;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  z-index: 10;
 }
 
 .prize-display {
   color: #ffd700;
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   text-align: center;
   text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
 
-.status-text {
+.player-stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   color: #aaa;
   font-size: 0.8rem;
   text-transform: uppercase;
-  text-align: center;
   letter-spacing: 1px;
 }
 
+/* 3. Mirrored HP Bars */
 .bar-container {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: 15px;
+  margin-top: 5px;
 }
 
 .bar {
   flex: 1;
-  height: 10px;
-  background: #222;
-  border-radius: 5px;
+  height: 12px;
+  background: #1a1a1a;
+  border-radius: 6px;
   overflow: hidden;
   border: 1px solid #444;
 }
@@ -65,52 +72,53 @@
   box-shadow: 0 0 8px #00ff88;
 }
 
-/* Canvas Area */
+/* 4. Canvas Combat Area */
 canvas {
   flex-grow: 1;
-  background: radial-gradient(circle, #1a1a2e 0%, #050508 100%);
+  /* Visual gradient to show player territories */
+  background: linear-gradient(to bottom, #1a0a0a 0%, #050508 50%, #0a1a1a 100%);
   display: block;
 }
 
-/* Controls */
-.controls {
-  padding: 25px;
+/* 5. Controls Section (Knob at Base) */
+.angle-control {
+  height: 120px;
   background: #0f0f15;
   border-top: 1px solid #333;
   display: flex;
+  flex-direction: column;
   justify-content: center;
-  align-items: center;
+  padding: 0 40px;
+  z-index: 10;
 }
 
 input[type=range] {
+  -webkit-appearance: none;
   width: 100%;
   height: 12px;
-  appearance: none;
   background: #222;
   border-radius: 10px;
   outline: none;
 }
 
 input[type=range]::-webkit-slider-thumb {
-  appearance: none;
-  width: 44px;
-  height: 44px;
-  background: #00f2ff;
-  border: 3px solid #fff;
+  -webkit-appearance: none;
+  width: 55px; /* Large for mobile thumb ergonomics */
+  height: 55px;
+  background: radial-gradient(circle, #00f2ff, #0066ff);
+  border: 4px solid #fff;
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 0 20px rgba(0, 242, 255, 0.6);
 }
 
-/* Victory/Game Over states */
-.game-over-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.9);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  color: white;
+/* 6. Utility Classes */
+.shake {
+  animation: shake 0.2s;
+}
+
+@keyframes shake {
+  0% { transform: translate(1px, 1px); }
+  50% { transform: translate(-2px, -1px); }
+  100% { transform: translate(0px, 0px); }
 }
