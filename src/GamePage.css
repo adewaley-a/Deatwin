@@ -10,78 +10,49 @@
 }
 
 .hp-header {
-  padding: 15px;
-  background: rgba(0, 0, 0, 0.95);
-  border-bottom: 2px solid #333;
-  z-index: 10;
+  padding: 10px;
+  background: rgba(0,0,0,0.95);
+  border-bottom:2px solid #333;
+  z-index:10;
 }
 
 .prize-display {
-  color: #ffd700;
-  font-weight: bold;
-  text-align: center;
-  font-size: 1.3rem;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  color:#ffd700;
+  font-weight:bold;
+  text-align:center;
+  font-size:1.2rem;
+  text-shadow:0 0 10px rgba(255,215,0,0.5);
 }
 
 .player-stats-row {
-  display: flex;
-  justify-content: space-between;
-  color: #fff;
-  font-size: 0.8rem;
-  margin-top: 5px;
+  display:flex;
+  justify-content:space-between;
+  color:#fff;
+  font-size:0.8rem;
+  margin-top:3px;
 }
 
 canvas {
-  flex-grow: 1;
-  background: linear-gradient(to bottom, #1a0a0a 0%, #050508 50%, #0a1a1a 100%);
-  display: block;
-}
-
-.angle-control {
-  height: 120px;
-  background: #111;
-  display: flex;
-  align-items: center;
-  padding: 0 40px;
-  border-top: 2px solid #333;
-}
-
-input[type=range] {
-  -webkit-appearance: none;
-  width: 100%;
-  height: 12px;
-  background: #222;
-  border-radius: 10px;
-  outline: none;
-}
-
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 60px;
-  height: 60px;
-  background: radial-gradient(circle, #00f2ff, #0066ff);
-  border: 4px solid #fff;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 0 20px rgba(0, 242, 255, 0.6);
+  flex-grow:1;
+  background:linear-gradient(to bottom,#1a0a0a 0%,#050508 50%,#0a1a1a 100%);
+  display:block;
 }
 
 .victory-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.95);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  color: white;
-  text-align: center;
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.95);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+  color:white;
+  text-align:center;
 }
 
 .prize-won {
-  color: #ffd700;
-  font-size: 2.5rem;
-  margin: 20px 0;
+  color:#ffd700;
+  font-size:2rem;
+  margin:15px 0;
 }

@@ -20,14 +20,14 @@ function GamePage() {
   const [isHost, setIsHost] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const [remoteState, setRemoteState] = useState(null);
-
   const canvasRef = useRef(null);
   const userId = useRef(getUserId());
 
+  // Local player state
   const local = useRef({
-    attacker: { x: 200, y: 700, hp: 400, angle: -Math.PI / 2, lastFireId: null },
-    shield: { x: 200, y: 600, hp: 150 },
-    treasure: { x: 100, y: 750, hp: 200 },
+    attacker: { x: 200, y: 300, hp: 400, angle: -Math.PI/2, lastFireId: null },
+    shield: { x: 300, y: 250, hp: 150 },
+    treasure: { x: 400, y: 350, hp: 200 },
     bullets: [],
     charge: 0,
     isCharging: false,
@@ -35,10 +35,11 @@ function GamePage() {
     dragOffset: { x: 0, y: 0 }
   });
 
+  // Remote bullets
   const remoteBullets = useRef([]);
 
-  // Apply damage
-  const applyDamage = useCallback(async (target, amount, isHeal = false) => {
+  // Apply damage helper
+  const applyDamage = useCallback(async (target, amount, isHeal=false) => {
     const roomRef = doc(db, "rooms", roomId);
     const targetRole = isHost ? "guestState" : "hostState";
     const selfRole = isHost ? "hostState" : "guestState";
@@ -51,16 +52,13 @@ function GamePage() {
         await updateDoc(roomRef, { [`${selfRole}.attacker.hp`]: increment(amount) });
         return;
       }
-
       const currentHp = data[targetRole][target].hp;
       if (currentHp <= 0) return;
-
-      const newHp = Math.max(0, currentHp - amount);
-      await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: newHp });
-    } catch (err) { console.error("Damage Error:", err); }
+      await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: Math.max(0,currentHp - amount) });
+    } catch(err){ console.error(err); }
   }, [isHost, roomId]);
 
-  // Sync local state
+  // Sync local state to Firestore
   const sync = useCallback(async () => {
     const role = isHost ? "hostState" : "guestState";
     await updateDoc(doc(db, "rooms", roomId), {
@@ -70,214 +68,197 @@ function GamePage() {
     });
   }, [isHost, roomId]);
 
-  // Firestore subscription
+  // Firestore subscription for opponent updates
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "rooms", roomId), async (snap) => {
       const data = snap.data();
-      if (!data) return;
+      if(!data) return;
       setGameData(data);
-      if (data.status === "finished") setShowVictory(true);
+      if(data.status === "finished") setShowVictory(true);
 
       const hostFlag = data.hostId === userId.current;
       setIsHost(hostFlag);
 
-      // Initialize opponent state if missing
-      const initialState = {
-        attacker: { x: 200, y: 700, hp: 400, angle: -Math.PI / 2, lastFireId: null },
-        shield: { x: 200, y: 600, hp: 150 },
-        treasure: { x: 100, y: 750, hp: 200 }
-      };
-
-      if (hostFlag && !data.guestState && data.guestId) {
-        await updateDoc(doc(db, "rooms", roomId), { guestState: initialState });
-        setRemoteState(initialState);
-      } else if (!hostFlag && !data.hostState) {
-        await updateDoc(doc(db, "rooms", roomId), { hostState: initialState });
-        setRemoteState(initialState);
-      } else {
-        const opponent = hostFlag ? data.guestState : data.hostState;
-        setRemoteState(opponent);
-      }
+      const opponent = hostFlag ? data.guestState : data.hostState;
+      setRemoteState(opponent);
 
       // Detect opponent fire
-      if (remoteState) {
-        const newFireId = (hostFlag ? data.guestState : data.hostState)?.attacker?.lastFireId;
-        if (newFireId && !remoteBullets.current.find(b => b.id === newFireId)) {
-          const opp = hostFlag ? data.guestState : data.hostState;
+      if(opponent?.attacker?.lastFireId){
+        const lastId = opponent.attacker.lastFireId;
+        if(!remoteBullets.current.find(b => b.id === lastId)){
           remoteBullets.current.push({
-            id: newFireId,
-            x: opp.attacker.x,
-            y: opp.attacker.y,
-            vx: Math.cos(opp.attacker.angle) * 12,
-            vy: Math.sin(opp.attacker.angle) * 12,
-            active: true
+            id: lastId,
+            x: opponent.attacker.x,
+            y: opponent.attacker.y,
+            vx: Math.cos(opponent.attacker.angle) * 12,
+            vy: Math.sin(opponent.attacker.angle) * 12,
+            active: true,
+            damage:2
           });
         }
       }
 
-      // Game end detection
+      // End game detection
       const myState = hostFlag ? data.hostState : data.guestState;
-      if (myState && myState.attacker.hp <= 0 && myState.treasure.hp <= 0 && data.status !== "finished") {
-        await updateDoc(doc(db, "rooms", roomId), { 
-          status: "finished", 
-          winner: hostFlag ? (data.guestName || "Guest") : (data.hostName || "Host") 
+      if(myState && myState.attacker.hp<=0 && myState.treasure.hp<=0 && data.status!=="finished"){
+        await updateDoc(doc(db,"rooms",roomId),{
+          status:"finished",
+          winner: hostFlag ? (data.guestName || "Guest") : (data.hostName || "Host")
         });
       }
     });
-    return () => unsubscribe();
-  }, [roomId, remoteState]);
+    return ()=>unsubscribe();
+  }, [roomId]);
 
   // Auto-fire bullets
-  useEffect(() => {
-    const interval = setInterval(() => {
+  useEffect(()=>{
+    const interval = setInterval(()=>{
       const l = local.current;
-      if (!l.isCharging && l.attacker.hp > 0) {
-        const fireId = Math.random().toString(36).substr(2, 9);
+      if(!l.isCharging && l.attacker.hp>0){
+        const fireId = Math.random().toString(36).substr(2,9);
         l.bullets.push({
-          x: l.attacker.x, y: l.attacker.y,
-          vx: Math.cos(l.attacker.angle) * 12,
-          vy: Math.sin(l.attacker.angle) * 12,
-          active: true,
-          damage: 2,
-          id: fireId
+          x:l.attacker.x, y:l.attacker.y,
+          vx: Math.cos(l.attacker.angle)*12,
+          vy: Math.sin(l.attacker.angle)*12,
+          active:true, damage:2, id:fireId
         });
-        const role = isHost ? "hostState" : "guestState";
-        updateDoc(doc(db, "rooms", roomId), { [`${role}.attacker.lastFireId`]: fireId });
-      } else if (l.isCharging) {
-        l.charge = Math.min(100, l.charge + 10);
-      }
-    }, 300);
-    return () => clearInterval(interval);
-  }, [isHost, roomId]);
+        const role = isHost ? "hostState":"guestState";
+        updateDoc(doc(db,"rooms",roomId),{ [`${role}.attacker.lastFireId`]:fireId });
+      } else if(l.isCharging){ l.charge=Math.min(100,l.charge+10); }
+    },300);
+    return ()=>clearInterval(interval);
+  },[isHost,roomId]);
 
-  // Touch handlers
-  const handleTouchStart = (e) => {
+  // Touch handling for dragging
+  const handleTouchStart = (e)=>{
     const touch = e.touches[0];
     const rect = canvasRef.current.getBoundingClientRect();
     const tx = touch.clientX - rect.left;
     const ty = touch.clientY - rect.top;
     const l = local.current;
-    const hit = (s, r) => Math.sqrt((tx - s.x) ** 2 + (ty - s.y) ** 2) < r;
+    const hit = (s,r)=>Math.sqrt((tx-s.x)**2 + (ty-s.y)**2) < r;
 
-    if (hit(l.attacker, 50)) { l.isCharging = true; l.charge = 0; }
-    else if (hit(l.shield, 60)) l.activeSprite = 'shield';
-    else if (hit(l.treasure, 40)) l.activeSprite = 'treasure';
+    if(hit(l.attacker,30)){ l.activeSprite='attacker'; l.dragOffset={x:tx-l.attacker.x, y:ty-l.attacker.y}; }
+    else if(hit(l.shield,30)){ l.activeSprite='shield'; l.dragOffset={x:tx-l.shield.x, y:ty-l.shield.y}; }
+    else if(hit(l.treasure,30)){ l.activeSprite='treasure'; l.dragOffset={x:tx-l.treasure.x, y:ty-l.treasure.y}; }
 
-    if (l.activeSprite) {
-      l.dragOffset.x = tx - l[l.activeSprite].x;
-      l.dragOffset.y = ty - l[l.activeSprite].y;
-    }
+    // Charge turret if attacker touched
+    if(l.activeSprite==='attacker'){ l.isCharging=true; l.charge=0; }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = ()=>{
     const l = local.current;
-    if (l.isCharging && l.charge >= 50) {
-      const fireId = Math.random().toString(36).substr(2, 9);
+    if(l.isCharging && l.charge>=50){
+      const fireId = Math.random().toString(36).substr(2,9);
       l.bullets.push({
-        x: l.attacker.x, y: l.attacker.y,
-        vx: Math.cos(l.attacker.angle) * 15,
-        vy: Math.sin(l.attacker.angle) * 15,
-        active: true, damage: 40, isGrenade: true,
-        id: fireId
+        x:l.attacker.x, y:l.attacker.y,
+        vx: Math.cos(l.attacker.angle)*15,
+        vy: Math.sin(l.attacker.angle)*15,
+        active:true, damage:40, id:fireId
       });
-      const role = isHost ? "hostState" : "guestState";
-      updateDoc(doc(db, "rooms", roomId), { [`${role}.attacker.lastFireId`]: fireId });
+      const role = isHost ? "hostState":"guestState";
+      updateDoc(doc(db,"rooms",roomId),{ [`${role}.attacker.lastFireId`]:fireId });
     }
-    l.isCharging = false;
-    l.charge = 0;
-    l.activeSprite = null;
+    l.isCharging=false;
+    l.charge=0;
+    l.activeSprite=null;
     sync();
   };
 
   // Canvas render
-  useEffect(() => {
+  useEffect(()=>{
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     let loop;
 
-    const scale = window.devicePixelRatio || 1;
-    canvas.width = window.innerWidth * scale;
-    canvas.height = (window.innerHeight - 150) * scale;
-    ctx.scale(scale, scale);
+    const W = window.innerWidth;
+    const H = window.innerHeight - 150;
 
-    const render = () => {
-      const l = local.current;
-      const r = remoteState;
-      const W = window.innerWidth;
-      const H = window.innerHeight - 150;
+    const render = ()=>{
+      const l=local.current;
+      const r=remoteState;
 
-      ctx.clearRect(0, 0, W, H);
+      ctx.clearRect(0,0,W,H);
 
-      // Opponent bullets
-      remoteBullets.current = remoteBullets.current.filter(b => b.active && b.y > 0 && b.y < H);
-      remoteBullets.current.forEach(b => {
-        b.x += b.vx; b.y += b.vy;
-        ctx.fillStyle = "white";
-        ctx.beginPath();
-        ctx.arc(b.x, H - b.y, 3, 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Collisions with local
-        if (Math.abs(b.x - l.shield.x) < 50 && Math.abs(H - b.y - l.shield.y) < 30 && l.shield.hp > 0) { applyDamage("shield", 2); b.active = false; }
-        if (Math.abs(b.x - l.treasure.x) < 30 && Math.abs(H - b.y - l.treasure.y) < 20 && l.treasure.hp > 0) { applyDamage("treasure", 2); applyDamage("attacker", 2, true); b.active = false; }
-        if (Math.abs(b.x - l.attacker.x) < 25 && Math.abs(H - b.y - l.attacker.y) < 25 && l.attacker.hp > 0) { applyDamage("attacker", 2); b.active = false; }
+      // === Remote bullets ===
+      remoteBullets.current = remoteBullets.current.filter(b=>b.active && b.y>0 && b.y<H);
+      remoteBullets.current.forEach(b=>{
+        b.x+=b.vx; b.y+=b.vy;
+        ctx.fillStyle="white";
+        ctx.beginPath(); ctx.arc(b.x,H-b.y,3,0,2*Math.PI); ctx.fill();
+        // collisions
+        if(Math.abs(b.x-l.shield.x)<50 && Math.abs(H-b.y-l.shield.y)<30 && l.shield.hp>0){ applyDamage("shield",2); b.active=false; }
+        if(Math.abs(b.x-l.treasure.x)<30 && Math.abs(H-b.y-l.treasure.y)<20 && l.treasure.hp>0){ applyDamage("treasure",2); applyDamage("attacker",2,true); b.active=false; }
+        if(Math.abs(b.x-l.attacker.x)<25 && Math.abs(H-b.y-l.attacker.y)<25 && l.attacker.hp>0){ applyDamage("attacker",2); b.active=false; }
       });
 
-      // Opponent elements mirrored
-      if (r) {
-        ctx.strokeStyle = r.shield.hp > 0 ? "red" : "transparent";
+      // === Opponent elements (mirrored top) ===
+      if(r){
+        ctx.strokeStyle = r.shield.hp>0?"red":"transparent";
         ctx.beginPath();
-        ctx.arc(r.shield.x, H - r.shield.y, 50, 0, Math.PI);
-        ctx.stroke();
+        ctx.arc(r.shield.x,H-r.shield.y,50,0,Math.PI); ctx.stroke();
 
-        ctx.fillStyle = r.treasure.hp > 0 ? "#550000" : "transparent";
-        ctx.fillRect(r.treasure.x - 20, H - r.treasure.y - 20, 40, 40);
+        ctx.fillStyle = r.treasure.hp>0?"#550000":"transparent";
+        ctx.fillRect(r.treasure.x-20,H-r.treasure.y-20,40,40);
 
-        ctx.fillStyle = "red";
-        ctx.fillRect(r.attacker.x - 20, H - r.attacker.y - 20, 40, 40);
+        ctx.fillStyle="red";
+        ctx.fillRect(r.attacker.x-20,H-r.attacker.y-20,40,40);
       }
 
-      // Local elements
+      // === Local elements (bottom half) ===
       ctx.beginPath();
-      ctx.arc(l.shield.x, l.shield.y, 50, Math.PI, 0);
-      ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 4; ctx.stroke();
+      ctx.arc(l.shield.x,l.shield.y,50,Math.PI,0);
+      ctx.strokeStyle="#00f2ff"; ctx.lineWidth=4; ctx.stroke();
+      ctx.fillStyle="#ffd700"; ctx.fillRect(l.treasure.x-25,l.treasure.y-15,50,30);
 
-      ctx.fillStyle = "#ffd700"; ctx.fillRect(l.treasure.x - 25, l.treasure.y - 15, 50, 30);
-
+      // Turret
       ctx.save();
-      ctx.translate(l.attacker.x, l.attacker.y);
+      ctx.translate(l.attacker.x,l.attacker.y);
       ctx.rotate(l.attacker.angle);
-      ctx.fillStyle = l.isCharging ? `rgb(255, ${255 - l.charge * 2}, 0)` : "#33ff33";
-      ctx.fillRect(0, -10, 50, 20);
+      ctx.fillStyle=l.isCharging?`rgb(255,${255-l.charge*2},0)`:"#33ff33";
+      ctx.fillRect(-25,-10,50,20);
       ctx.restore();
 
-      if (l.isCharging) { ctx.fillStyle = "white"; ctx.fillRect(l.attacker.x - 25, l.attacker.y + 35, l.charge / 2, 6); }
+      // Turret angle control knob (small draggable at base)
+      ctx.fillStyle="#00f2ff";
+      ctx.strokeStyle="#fff";
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(l.attacker.x,l.attacker.y+15,10,0,2*Math.PI); ctx.fill(); ctx.stroke();
+
+      // Charge bar
+      if(l.isCharging){ ctx.fillStyle="white"; ctx.fillRect(l.attacker.x-25,l.attacker.y+35,l.charge/2,6); }
 
       // Local bullets
-      l.bullets = l.bullets.filter(b => b.active && b.y > 0 && b.y < H);
-      l.bullets.forEach(b => {
-        b.x += b.vx; b.y += b.vy;
-        ctx.fillStyle = b.isGrenade ? "orange" : "white";
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.isGrenade ? 8 : 3, 0, 2 * Math.PI);
-        ctx.fill();
+      l.bullets = l.bullets.filter(b=>b.active && b.y>0 && b.y<H);
+      l.bullets.forEach(b=>{
+        b.x+=b.vx; b.y+=b.vy;
+        ctx.fillStyle=b.damage>2?"orange":"white";
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.damage>2?8:3,0,2*Math.PI); ctx.fill();
       });
 
-      loop = requestAnimationFrame(render);
+      loop=requestAnimationFrame(render);
     };
     render();
-    return () => cancelAnimationFrame(loop);
-  }, [remoteState, applyDamage]);
+    return ()=>cancelAnimationFrame(loop);
+  },[remoteState,applyDamage]);
 
   return (
     <div className="game-screen"
          onTouchStart={handleTouchStart}
-         onTouchMove={(e) => {
+         onTouchMove={(e)=>{
            const touch = e.touches[0];
            const rect = canvasRef.current.getBoundingClientRect();
-           if (local.current.activeSprite) {
-             local.current[local.current.activeSprite].x = touch.clientX - rect.left - local.current.dragOffset.x;
-             local.current[local.current.activeSprite].y = touch.clientY - rect.top - local.current.dragOffset.y;
+           if(local.current.activeSprite){
+             const half = isHost? (window.innerHeight/2):0; // top or bottom half
+             let newY = touch.clientY - rect.top - local.current.dragOffset.y;
+             let newX = touch.clientX - rect.left - local.current.dragOffset.x;
+
+             // constrain to player's half
+             if(isHost){ if(newY>window.innerHeight/2) newY=window.innerHeight/2; }
+             else { if(newY<window.innerHeight/2) newY=window.innerHeight/2; }
+
+             local.current[local.current.activeSprite].x = Math.max(30,Math.min(W-30,newX));
+             local.current[local.current.activeSprite].y = Math.max(30,Math.min(H-30,newY));
              sync();
            }
          }}
@@ -287,22 +268,17 @@ function GamePage() {
           <h1>GAME OVER</h1>
           <p>Champion: {gameData?.winner}</p>
           <h2 className="prize-won">₦{gameData?.prizePool} Won!</h2>
-          <button onClick={() => navigate('/')}>Return to Lobby</button>
+          <button onClick={()=>navigate('/')}>Return to Lobby</button>
         </div>
       )}
       <div className="hp-header">
         <div className="prize-display">PRIZE: ₦{gameData?.prizePool}</div>
         <div className="player-stats-row">
-          <span>MY HP: {gameData?.[isHost ? 'hostState' : 'guestState']?.attacker.hp || 0}</span>
+          <span>MY HP: {gameData?.[isHost?'hostState':'guestState']?.attacker.hp || 0}</span>
           <span>OPPONENT HP: {remoteState?.attacker.hp || 0}</span>
         </div>
       </div>
-      <canvas ref={canvasRef} width={window.innerWidth} height={window.innerHeight - 150} />
-      <div className="angle-control">
-        <input type="range" min="-3.14" max="0" step="0.01"
-               value={local.current.attacker.angle}
-               onChange={(e) => { local.current.attacker.angle = parseFloat(e.target.value); sync(); }} />
-      </div>
+      <canvas ref={canvasRef} width={window.innerWidth} height={window.innerHeight-150}/>
     </div>
   );
 }
