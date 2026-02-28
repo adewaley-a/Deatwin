@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  touch-action: none; /* Stops the browser from scrolling while playing */
+  touch-action: none;
   position: relative;
 }
 
@@ -34,8 +34,15 @@
 
 canvas {
   flex-grow: 1;
-  /* Visual gradient showing territories */
-  background: linear-gradient(to bottom, #1a0a0a 0%, #050508 50%, #0a1a1a 100%);
+  background:
+    linear-gradient(
+      to bottom,
+      #1a0a0a 0%,
+      #050508 49%,
+      #ffffff22 50%,
+      #050508 51%,
+      #0a1a1a 100%
+    );
   display: block;
 }
 
@@ -59,7 +66,7 @@ input[type=range] {
 
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 60px; /* Oversized for mobile thumb precision */
+  width: 60px;
   height: 60px;
   background: radial-gradient(circle, #00f2ff, #0066ff);
   border: 4px solid #fff;
@@ -85,4 +92,9 @@ input[type=range]::-webkit-slider-thumb {
   color: #ffd700;
   font-size: 2.5rem;
   margin: 20px 0;
+}
+
+* {
+  user-select: none;
+  -webkit-user-select: none;
 }

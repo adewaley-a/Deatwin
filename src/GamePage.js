@@ -35,35 +35,43 @@ function GamePage() {
 
   const remote = useRef(null);
 
+  // Apply damage to opponent or self (lifesteal)
   const applyDamage = useCallback(async (target, amount, isHeal = false) => {
     const roomRef = doc(db, "rooms", roomId);
     const targetRole = isHost ? "guestState" : "hostState";
     const selfRole = isHost ? "hostState" : "guestState";
+
     try {
+      const snap = await getDoc(roomRef);
+      const data = snap.data();
+      if (!data || !data[targetRole]) return;
+
       if (isHeal) {
         await updateDoc(roomRef, { [`${selfRole}.attacker.hp`]: increment(amount) });
-      } else {
-        const snap = await getDoc(roomRef);
-        const data = snap.data();
-        if (!data || !data[targetRole]) return;
-        const currentHp = data[targetRole][target].hp;
-        const newHp = Math.max(0, currentHp - amount);
-        await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: newHp });
+        return;
       }
-    } catch (err) { console.error("Damage Error:", err); }
+
+      const currentHp = data[targetRole][target].hp;
+      if (currentHp <= 0) return;
+
+      const newHp = Math.max(0, currentHp - amount);
+      await updateDoc(roomRef, { [`${targetRole}.${target}.hp`]: newHp });
+    } catch (err) {
+      console.error("Damage Error:", err);
+    }
   }, [isHost, roomId]);
 
+  // Sync local state to Firestore
   const sync = useCallback(async () => {
     const role = isHost ? "hostState" : "guestState";
     await updateDoc(doc(db, "rooms", roomId), {
-      [role]: { 
-        attacker: local.current.attacker,
-        shield: local.current.shield,
-        treasure: local.current.treasure
-      } 
+      [`${role}.attacker`]: local.current.attacker,
+      [`${role}.shield`]: local.current.shield,
+      [`${role}.treasure`]: local.current.treasure
     });
   }, [isHost, roomId]);
 
+  // Subscribe to Firestore updates
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       const data = snap.data();
@@ -74,17 +82,21 @@ function GamePage() {
       const hostFlag = data.hostId === userId.current;
       setIsHost(hostFlag);
       
-      // CRITICAL: Update remote ref whenever Firestore data changes
+      // Update remote state for opponent rendering
       remote.current = hostFlag ? data.guestState : data.hostState;
 
       const myState = hostFlag ? data.hostState : data.guestState;
       if (myState && myState.attacker.hp <= 0 && myState.treasure.hp <= 0 && data.status !== "finished") {
-        updateDoc(doc(db, "rooms", roomId), { status: "finished", winner: hostFlag ? (data.guestName || "Guest") : (data.hostName || "Host") });
+        updateDoc(doc(db, "rooms", roomId), { 
+          status: "finished", 
+          winner: hostFlag ? (data.guestName || "Guest") : (data.hostName || "Host") 
+        });
       }
     });
     return () => unsubscribe();
   }, [roomId]);
 
+  // Auto-fire bullets
   useEffect(() => {
     const interval = setInterval(() => {
       const l = local.current;
@@ -92,16 +104,18 @@ function GamePage() {
         l.charge = Math.min(100, l.charge + 10);
       } else if (l.attacker.hp > 0) {
         l.bullets.push({
+          from: userId.current,
           x: l.attacker.x, y: l.attacker.y,
           vx: Math.cos(l.attacker.angle) * 12,
           vy: Math.sin(l.attacker.angle) * 12,
-          active: true, damage: 5
+          active: true, damage: 2
         });
       }
     }, 300);
     return () => clearInterval(interval);
   }, []);
 
+  // Touch drag / charge
   const handleTouchStart = (e) => {
     const touch = e.touches[0];
     const rect = canvasRef.current.getBoundingClientRect();
@@ -124,6 +138,7 @@ function GamePage() {
     const l = local.current;
     if (l.isCharging && l.charge >= 50) {
       l.bullets.push({
+        from: userId.current,
         x: l.attacker.x, y: l.attacker.y,
         vx: Math.cos(l.attacker.angle) * 15,
         vy: Math.sin(l.attacker.angle) * 15,
@@ -136,6 +151,7 @@ function GamePage() {
     sync();
   };
 
+  // Canvas rendering & collision
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -148,10 +164,10 @@ function GamePage() {
       const H = canvas.height;
       ctx.clearRect(0, 0, W, H);
 
-      // Draw Opponent (Mirrored Top)
+      // Opponent
       if (r && r.attacker) {
         l.bullets.forEach((b) => {
-          if (!b.active) return;
+          if (!b.active || b.from !== userId.current) return;
           const oppShieldY = H - r.shield.y;
           const oppTreasureY = H - r.treasure.y;
           const oppAttackerY = H - r.attacker.y;
@@ -161,7 +177,7 @@ function GamePage() {
           } 
           else if (Math.abs(b.x - r.treasure.x) < 30 && Math.abs(b.y - oppTreasureY) < 20 && r.treasure.hp > 0) {
             applyDamage("treasure", b.damage);
-            applyDamage("attacker", 5, true); 
+            applyDamage("attacker", 2, true); 
             b.active = false;
           }
           else if (Math.abs(b.x - r.attacker.x) < 25 && Math.abs(b.y - oppAttackerY) < 25) {
@@ -176,11 +192,11 @@ function GamePage() {
         ctx.fillStyle = "red"; ctx.fillRect(r.attacker.x - 20, H - r.attacker.y - 20, 40, 40);
       }
 
-      // Draw Local
+      // Local
       ctx.beginPath(); ctx.arc(l.shield.x, l.shield.y, 50, Math.PI, 0);
       ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 4; ctx.stroke();
       ctx.fillStyle = "#ffd700"; ctx.fillRect(l.treasure.x - 25, l.treasure.y - 15, 50, 30);
-      
+
       ctx.save();
       ctx.translate(l.attacker.x, l.attacker.y);
       ctx.rotate(l.attacker.angle);
@@ -213,7 +229,7 @@ function GamePage() {
             if (local.current.activeSprite) {
               local.current[local.current.activeSprite].x = touch.clientX - rect.left - local.current.dragOffset.x;
               local.current[local.current.activeSprite].y = touch.clientY - rect.top - local.current.dragOffset.y;
-              sync(); // Sync in real-time as we move
+              sync();
             }
          }} 
          onTouchEnd={handleTouchEnd}>
