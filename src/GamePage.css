@@ -11,7 +11,7 @@
 
 .hp-header {
   padding: 15px;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgba(0,0,0,0.95);
   border-bottom: 2px solid #333;
   z-index: 10;
 }
@@ -21,7 +21,7 @@
   font-weight: bold;
   text-align: center;
   font-size: 1.3rem;
-  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  text-shadow:0 0 10px rgba(255,215,0,0.5);
 }
 
 .player-stats-row {
@@ -29,72 +29,64 @@
   justify-content: space-between;
   color: #fff;
   font-size: 0.8rem;
-  margin-top: 5px;
+  margin-top:5px;
 }
 
 canvas {
-  flex-grow: 1;
-  background:
-    linear-gradient(
-      to bottom,
-      #1a0a0a 0%,
-      #050508 49%,
-      #ffffff22 50%,
-      #050508 51%,
-      #0a1a1a 100%
-    );
-  display: block;
+  flex-grow:1;
+  background: linear-gradient(to bottom,#1a0a0a 0%,#050508 49%,#ffffff22 50%,#050508 51%,#0a1a1a 100%);
+  display:block;
 }
 
 .angle-control {
-  height: 120px;
-  background: #111;
-  display: flex;
-  align-items: center;
-  padding: 0 40px;
-  border-top: 2px solid #333;
+  height:120px;
+  background:#111;
+  display:flex;
+  align-items:center;
+  padding:0 40px;
+  border-top:2px solid #333;
 }
 
 input[type=range] {
-  -webkit-appearance: none;
-  width: 100%;
-  height: 12px;
-  background: #222;
-  border-radius: 10px;
-  outline: none;
+  -webkit-appearance:none;
+  width:100%;
+  height:12px;
+  background:#222;
+  border-radius:10px;
+  outline:none;
 }
 
 input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 60px;
-  height: 60px;
-  background: radial-gradient(circle, #00f2ff, #0066ff);
-  border: 4px solid #fff;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: 0 0 20px rgba(0, 242, 255, 0.6);
+  -webkit-appearance:none;
+  width:60px;
+  height:60px;
+  background: radial-gradient(circle,#00f2ff,#0066ff);
+  border:4px solid #fff;
+  border-radius:50%;
+  cursor:pointer;
+  box-shadow:0 0 20px rgba(0,242,255,0.6);
 }
 
 .victory-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.95);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  color: white;
-  text-align: center;
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,0.95);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+  color:white;
+  text-align:center;
 }
 
 .prize-won {
-  color: #ffd700;
-  font-size: 2.5rem;
-  margin: 20px 0;
+  color:#ffd700;
+  font-size:2.5rem;
+  margin:20px 0;
 }
 
 * {
-  user-select: none;
-  -webkit-user-select: none;
+  user-select:none;
+  -webkit-user-select:none;
 }
