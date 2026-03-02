@@ -1,157 +1,236 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { db } from "./firebase";
-import { doc, onSnapshot, updateDoc, getDoc } from "firebase/firestore";
-import { rtdb } from "./firebase";
-import { ref, push, onChildAdded, remove } from "firebase/database";
+import { db, rtdb } from "./firebase"; 
+import { doc, onSnapshot } from "firebase/firestore";
+import { ref, onValue, set, push, onChildAdded, update } from "firebase/database";
 import "./GamePage.css";
-
-const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 export default function GamePage() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const canvasRef = useRef(null);
+  
+  // UI State
+  const [playerRole, setPlayerRole] = useState(null); 
+  const [names, setNames] = useState({ host: "Player 1", guest: "Player 2" });
+  const [health, setHealth] = useState({ host: 100, guest: 100 });
+  const [gameOver, setGameOver] = useState(null);
 
-  const [gameData, setGameData] = useState(null);
-  const [isHost, setIsHost] = useState(false);
-  const [remote, setRemote] = useState(null);
+  // Constants
+  const GAME_WIDTH = 400; 
+  const GAME_HEIGHT = 700; 
 
-  const bullets = useRef([]);
-
-  const local = useRef({
-    attacker: { x: 200, y: 420, hp: 400, angle: -Math.PI / 2 },
-    shield: { x: 300, y: 380, hp: 150 },
-    treasure: { x: 400, y: 460, hp: 200 },
-    dragging: null,
-    dragOffset: { x: 0, y: 0 }
+  // High-frequency refs
+  const gameState = useRef({
+    host: { x: 200, y: 600 },
+    guest: { x: 200, y: 100 },
+    bullets: []
   });
+  const isDragging = useRef(false);
 
-  /* -------------------- FIRESTORE SNAPSHOT -------------------- */
+  /* 1. SYNC ROLES & INITIALIZE RTDB */
   useEffect(() => {
-    return onSnapshot(doc(db, "rooms", roomId), snap => {
-      const d = snap.data();
-      if (!d) return;
-      setGameData(d);
-      setIsHost(d.hostId === d.selfId);
-      setRemote(isHost ? d.guestState : d.hostState);
-    });
-  }, [roomId, isHost]);
+    const roomRef = doc(db, "rooms", roomId);
+    const unsubFirestore = onSnapshot(roomRef, (snap) => {
+      const data = snap.data();
+      if (!data) return;
 
-  /* -------------------- BULLETS (RTDB) -------------------- */
-  useEffect(() => {
-    const bulletsRef = ref(rtdb, `rooms/${roomId}/bullets`);
-    return onChildAdded(bulletsRef, snap => {
-      bullets.current.push({ id: snap.key, ...snap.val() });
-    });
-  }, [roomId]);
+      setNames({ host: data.hostName, guest: data.guestName });
+      
+      // Determine Role
+      const currentUserId = data.selfId; // Adjust based on your Auth/ID logic
+      const role = data.hostId === currentUserId ? "host" : "guest";
+      setPlayerRole(role);
 
-  const fireBullet = () => {
-    const a = local.current.attacker;
-    push(ref(rtdb, `rooms/${roomId}/bullets`), {
-      x: a.x,
-      y: a.y,
-      vx: Math.cos(a.angle) * 12,
-      vy: Math.sin(a.angle) * 12,
-      owner: isHost ? "host" : "guest",
-      damage: 2,
-      created: Date.now()
-    });
-  };
-
-  /* -------------------- INPUT -------------------- */
-  const startDrag = e => {
-    const r = canvasRef.current.getBoundingClientRect();
-    const x = e.touches[0].clientX - r.left;
-    const y = e.touches[0].clientY - r.top;
-
-    ["attacker", "shield", "treasure"].forEach(k => {
-      const p = local.current[k];
-      if (Math.hypot(x - p.x, y - p.y) < 40) {
-        local.current.dragging = k;
-        local.current.dragOffset = { x: x - p.x, y: y - p.y };
+      // INITIALIZATION: If Host, set the starting values in RTDB
+      if (role === "host") {
+        const gameRef = ref(rtdb, `rooms/${roomId}`);
+        onValue(gameRef, (snapshot) => {
+          if (!snapshot.exists()) {
+            update(gameRef, {
+              health: { host: 100, guest: 100 },
+              positions: {
+                host: { x: 200, y: 600 },
+                guest: { x: 200, y: 100 }
+              }
+            });
+          }
+        }, { onlyOnce: true });
       }
     });
-  };
 
-  const drag = e => {
-    if (!local.current.dragging) return;
-    const r = canvasRef.current.getBoundingClientRect();
-    let x = e.touches[0].clientX - r.left - local.current.dragOffset.x;
-    let y = e.touches[0].clientY - r.top - local.current.dragOffset.y;
+    return () => unsubFirestore();
+  }, [roomId]);
 
-    const H = canvasRef.current.height;
-    const minY = H / 2;
-    y = clamp(y, minY + 40, H - 40);
-    x = clamp(x, 40, canvasRef.current.width - 40);
+  /* 2. REALTIME GAME ENGINE (RTDB) */
+  useEffect(() => {
+    if (!playerRole) return;
 
-    local.current[local.current.dragging].x = x;
-    local.current[local.current.dragging].y = y;
-  };
-
-  const endDrag = async () => {
-    const role = isHost ? "hostState" : "guestState";
-    await updateDoc(doc(db, "rooms", roomId), {
-      [`${role}.attacker`]: local.current.attacker,
-      [`${role}.shield`]: local.current.shield,
-      [`${role}.treasure`]: local.current.treasure
+    // Listen for Positions
+    const posRef = ref(rtdb, `rooms/${roomId}/positions`);
+    onValue(posRef, (snap) => {
+      const val = snap.val();
+      if (val) {
+        if (val.host) gameState.current.host = val.host;
+        if (val.guest) gameState.current.guest = val.guest;
+      }
     });
-    local.current.dragging = null;
+
+    // Listen for Health & Victory
+    const healthRef = ref(rtdb, `rooms/${roomId}/health`);
+    onValue(healthRef, (snap) => {
+      const val = snap.val();
+      if (val) {
+        setHealth(val);
+        if (val.host <= 0) setGameOver(playerRole === 'host' ? 'lose' : 'win');
+        if (val.guest <= 0) setGameOver(playerRole === 'guest' ? 'lose' : 'win');
+      }
+    });
+
+    // Bullet Listener
+    const bulletsRef = ref(rtdb, `rooms/${roomId}/bullets`);
+    onChildAdded(bulletsRef, (snap) => {
+      gameState.current.bullets.push({ id: snap.key, ...snap.val() });
+    });
+
+    // Auto-Firing Logic
+    const fireInterval = setInterval(() => {
+      if (gameOver) return;
+      const myPos = gameState.current[playerRole];
+      
+      push(ref(rtdb, `rooms/${roomId}/bullets`), {
+        x: myPos.x,
+        y: playerRole === "host" ? myPos.y - 40 : myPos.y + 40,
+        vy: playerRole === "host" ? -9 : 9, 
+        owner: playerRole
+      });
+    }, 600 + Math.random() * 1000);
+
+    return () => clearInterval(fireInterval);
+  }, [roomId, playerRole, gameOver]);
+
+  /* 3. INPUT HANDLING */
+  const handleMove = (e) => {
+    if (!isDragging.current || !playerRole || gameOver) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    
+    let nX = (touch.clientX - rect.left) * (GAME_WIDTH / rect.width);
+    let nY = (touch.clientY - rect.top) * (GAME_HEIGHT / rect.height);
+
+    // Mirroring for the Guest
+    if (playerRole === "guest") {
+        nY = GAME_HEIGHT - nY;
+        nX = GAME_WIDTH - nX;
+    }
+
+    // Lock to bottom half
+    nY = Math.max(GAME_HEIGHT / 2 + 50, Math.min(GAME_HEIGHT - 40, nY));
+    nX = Math.max(40, Math.min(GAME_WIDTH - 40, nX));
+
+    set(ref(rtdb, `rooms/${roomId}/positions/${playerRole}`), { x: nX, y: nY });
   };
 
-  /* -------------------- RENDER LOOP -------------------- */
+  const takeDamage = () => {
+    const currentHP = health[playerRole];
+    if (currentHP > 0) {
+      set(ref(rtdb, `rooms/${roomId}/health/${playerRole}`), currentHP - 5);
+    }
+  };
+
+  /* 4. CANVAS RENDERER */
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
+    let animationReq;
 
     const loop = () => {
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-      // Local
-      drawPlayer(ctx, local.current, false);
+      // Mid-field Glow
+      ctx.strokeStyle = "rgba(0, 242, 255, 0.2)";
+      ctx.setLineDash([5, 15]);
+      ctx.beginPath(); ctx.moveTo(0, GAME_HEIGHT/2); ctx.lineTo(GAME_WIDTH, GAME_HEIGHT/2); ctx.stroke();
+      ctx.setLineDash([]);
 
-      // Remote
-      if (remote) drawPlayer(ctx, remote, true);
+      const drawPlayer = (data, isOpponent) => {
+        let renderX = data.x;
+        let renderY = data.y;
 
-      // Bullets
-      bullets.current.forEach(b => {
-        b.x += b.vx;
+        // Render Mirror Logic
+        if ((playerRole === "host" && isOpponent) || (playerRole === "guest" && !isOpponent)) {
+            renderX = GAME_WIDTH - data.x;
+            renderY = GAME_HEIGHT - data.y;
+        }
+
+        ctx.fillStyle = isOpponent ? "#ff3e3e" : "#00f2ff";
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fillRect(renderX - 20, renderY - 20, 40, 40);
+        ctx.shadowBlur = 0;
+      };
+
+      drawPlayer(gameState.current.host, playerRole === "guest");
+      drawPlayer(gameState.current.guest, playerRole === "host");
+
+      // Bullet Physics & Collision
+      gameState.current.bullets.forEach((b, i) => {
         b.y += b.vy;
-        ctx.fillStyle = "white";
-        ctx.beginPath();
-        ctx.arc(b.x, b.owner === "host" ? canvasRef.current.height - b.y : b.y, 3, 0, Math.PI * 2);
-        ctx.fill();
+        
+        let bX = b.x; let bY = b.y;
+        if (playerRole === "guest") { bX = GAME_WIDTH - b.x; bY = GAME_HEIGHT - b.y; }
+
+        ctx.fillStyle = "#fffb00";
+        ctx.beginPath(); ctx.arc(bX, bY, 5, 0, Math.PI * 2); ctx.fill();
+
+        // Check if I got hit
+        const me = gameState.current[playerRole];
+        if (Math.hypot(b.x - me.x, b.y - me.y) < 25 && b.owner !== playerRole) {
+            gameState.current.bullets.splice(i, 1);
+            takeDamage();
+        }
+
+        if (b.y < -100 || b.y > GAME_HEIGHT + 100) gameState.current.bullets.splice(i, 1);
       });
 
-      requestAnimationFrame(loop);
+      animationReq = requestAnimationFrame(loop);
     };
+
     loop();
-  }, [remote]);
+    return () => cancelAnimationFrame(animationReq);
+  }, [playerRole, health, gameOver]);
 
   return (
-    <div
-      className="game-screen"
-      onTouchStart={startDrag}
-      onTouchMove={drag}
-      onTouchEnd={endDrag}
-    >
-      <canvas ref={canvasRef} width={window.innerWidth} height={window.innerHeight - 100} />
-      <button className="fire-btn" onClick={fireBullet}>FIRE</button>
+    <div className="game-container">
+      <div className="ui-layer opponent">
+        <div className="hp-container">
+          <div className="hp-fill" style={{ width: `${playerRole === 'host' ? health.guest : health.host}%` }} />
+        </div>
+        <p>{playerRole === 'host' ? names.guest : names.host}</p>
+      </div>
+      
+      <canvas 
+        ref={canvasRef} 
+        width={GAME_WIDTH} 
+        height={GAME_HEIGHT}
+        onTouchStart={() => isDragging.current = true}
+        onTouchMove={handleMove}
+        onTouchEnd={() => isDragging.current = false}
+      />
+
+      <div className="ui-layer local">
+        <p>{playerRole === 'host' ? names.host : names.guest} (YOU)</p>
+        <div className="hp-container">
+          <div className="hp-fill" style={{ width: `${playerRole === 'host' ? health.host : health.guest}%` }} />
+        </div>
+      </div>
+
+      {gameOver && (
+        <div className="game-over-screen">
+          <h1 className={gameOver}>{gameOver === 'win' ? 'VICTORY' : 'DEFEAT'}</h1>
+          <button onClick={() => navigate("/lobby")}>EXIT TO LOBBY</button>
+        </div>
+      )}
     </div>
   );
-}
-
-function drawPlayer(ctx, p, mirror) {
-  const H = ctx.canvas.height;
-  const y = mirror ? H - p.attacker.y : p.attacker.y;
-
-  ctx.fillStyle = mirror ? "red" : "#33ff33";
-  ctx.fillRect(p.attacker.x - 20, y - 20, 40, 40);
-
-  ctx.strokeStyle = mirror ? "red" : "#00f2ff";
-  ctx.beginPath();
-  ctx.arc(p.shield.x, mirror ? H - p.shield.y : p.shield.y, 50, Math.PI, 0);
-  ctx.stroke();
-
-  ctx.fillStyle = mirror ? "#550000" : "#ffd700";
-  ctx.fillRect(p.treasure.x - 20, (mirror ? H - p.treasure.y : p.treasure.y) - 20, 40, 40);
 }

@@ -1,24 +1,91 @@
-.game-screen {
-  background: #050508;
-  height: 100vh;
-  width: 100vw;
-  touch-action: none;
-  overflow: hidden;
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+.game-container {
+    width: 100vw;
+    height: 100vh;
+    background: #050505;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'Orbitron', sans-serif;
 }
 
 canvas {
-  background: linear-gradient(to bottom, #1a0a0a 0%, #050508 50%, #0a1a1a 100%);
-  display: block;
+    background: radial-gradient(circle, #1a1a2e 0%, #000000 100%);
+    border: 2px solid #222;
+    box-shadow: 0 0 30px rgba(0, 242, 255, 0.1);
+    max-width: 95vw;
+    max-height: 75vh;
 }
 
-.fire-btn {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 24px;
-  background: #00f2ff;
-  border: none;
-  border-radius: 20px;
-  font-weight: bold;
+.ui-layer {
+    width: 100%;
+    max-width: 400px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 10;
+}
+
+.ui-layer p {
+    color: white;
+    margin: 5px 0;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.opponent p { color: #ff3e3e; }
+.local p { color: #00f2ff; }
+
+.hp-container {
+    width: 80%;
+    height: 12px;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.hp-fill {
+    height: 100%;
+    transition: width 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.opponent .hp-fill { background: linear-gradient(90deg, #8b0000, #ff3e3e); }
+.local .hp-fill { background: linear-gradient(90deg, #008085, #00f2ff); }
+
+.game-over-screen {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.win { color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
+.lose { color: #ff3e3e; text-shadow: 0 0 20px #ff3e3e; }
+
+.game-over-screen button {
+    margin-top: 20px;
+    padding: 12px 30px;
+    background: transparent;
+    border: 2px solid white;
+    color: white;
+    font-family: 'Orbitron';
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.game-over-screen button:hover {
+    background: white;
+    color: black;
 }
