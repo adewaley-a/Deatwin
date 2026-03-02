@@ -9,6 +9,7 @@ const firebaseConfig = {
   storageBucket: "deatwin-6f70b.firebasestorage.app",
   messagingSenderId: "1041917039721",
   appId: "1:1041917039721:web:409f4d3ff2d3d76000bef8",
+  databaseURL: "https://deatwin-6f70b-default-rtdb.firebaseio.com/",
   measurementId: "G-F312DE7LX7"
 };
 
