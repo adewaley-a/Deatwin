@@ -22,7 +22,7 @@ export default function GamePage() {
   const W = 400;
   const H = 700;
 
-  // Ref-based positions to ensure smooth 60fps movement
+  // Refs prevent the "ghosting" effect by holding current values
   const myPos = useRef({ x: 200, y: 600 });
   const enemyPos = useRef({ x: 200, y: 100 });
   const bullets = useRef([]);
@@ -40,30 +40,28 @@ export default function GamePage() {
 
     socket.current.on("assign_role", (data) => setRole(data.role));
     
-    // Update enemy position ref immediately on sync
+    // Sync enemy position
     socket.current.on("opp_move", (data) => { 
       enemyPos.current = { x: data.x, y: data.y }; 
     });
 
-    // Receive incoming bullets from opponent
+    // Receive opponent bullets
     socket.current.on("incoming_bullet", (b) => {
       bullets.current.push(b);
     });
 
     socket.current.on("update_health", (h) => {
       setHealth(h);
-      if ((h.host <= 0 || h.guest <= 0) && role) {
-        setGameOver(h[role] <= 0 ? "lose" : "win");
-      }
+      if ((h.host <= 0 || h.guest <= 0) && role) setGameOver(h[role] <= 0 ? "lose" : "win");
     });
 
-    // High-frequency shooting loop (333ms)
     const fireInterval = setInterval(() => {
       if (!role || gameOver) return;
       
+      // Bullets always spawn at the CURRENT shooter tip
       const bData = { 
         x: myPos.current.x, 
-        y: myPos.current.y - 25, // Always spawn at current tip
+        y: myPos.current.y - 25, 
         v: -12, 
         owner: role, 
         roomId 
@@ -87,17 +85,15 @@ export default function GamePage() {
     if (!role || gameOver) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const t = e.touches[0];
-    
     let nX = (t.clientX - rect.left) * (W / rect.width);
     let nY = (t.clientY - rect.top) * (H / rect.height);
     
-    // Boundary locking: Player stays in bottom half
+    // Boundary locking to your half
     nY = Math.max(H / 2 + 50, Math.min(H - 40, nY));
     nX = Math.max(25, Math.min(W - 25, nX));
     
     myPos.current = { x: nX, y: nY };
-    
-    // Emit mirrored coordinates so opponent sees you at top
+    // Send inverted coords so opponent sees you at top
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
 
@@ -108,11 +104,11 @@ export default function GamePage() {
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // Draw static arena divider
+      // Middle line
       ctx.strokeStyle = "#222";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // RENDER LOCAL PLAYER (Cyan)
+      // LOCAL SHOOTER (Cyan)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -120,12 +116,7 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      if (muzzle) {
-        ctx.fillStyle = "rgba(255, 255, 0, 0.5)";
-        ctx.beginPath(); ctx.arc(myPos.current.x, myPos.current.y - 30, 10, 0, 7); ctx.fill();
-      }
-
-      // RENDER OPPONENT (Red)
+      // OPPONENT SHOOTER (Red)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -133,27 +124,25 @@ export default function GamePage() {
       ctx.lineTo(enemyPos.current.x + 20, enemyPos.current.y - 15);
       ctx.fill();
 
-      // BULLET SYNC & RENDER
-      [...bullets.current].forEach((b, i) => {
-        b.y += b.v; // Local movement
+      // BULLET UPDATE LOOP
+      bullets.current.forEach((b, i) => {
+        b.y += b.v; 
 
-        // SYNC DRAWING: Flip Y and X if bullet is not yours
+        // CRITICAL FIX: Mirror the drawing of bullets NOT owned by you
         let drawX = b.owner === role ? b.x : W - b.x;
         let drawY = b.owner === role ? b.y : H - b.y;
 
         ctx.fillStyle = "#fffb00";
-        ctx.fillRect(drawX - 2, drawY - 10, 4, 20); // Bullet "slug" shape
+        ctx.fillRect(drawX - 2, drawY - 10, 4, 20); // Vertical slugs
 
-        // Collision logic (Hit detection against local player)
+        // Collision logic (against your own shooter)
         if (b.owner !== role && Math.hypot(drawX - myPos.current.x, drawY - myPos.current.y) < 25) {
           bullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role });
         }
 
-        // Cleanup bullets that leave the screen
-        if (drawY < -50 || drawY > H + 50) {
-          bullets.current.splice(i, 1);
-        }
+        // Cleanup out-of-bounds
+        if (drawY < -50 || drawY > H + 50) bullets.current.splice(i, 1);
       });
 
       frame = requestAnimationFrame(render);
