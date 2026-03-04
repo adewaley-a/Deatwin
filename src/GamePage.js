@@ -22,7 +22,6 @@ export default function GamePage() {
   const myPos = useRef({ x: 200, y: 600 });
   const enemyPos = useRef({ x: 200, y: 100 });
   
-  // Separate arrays to solve the "Two Streams" bug
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
 
@@ -53,11 +52,10 @@ export default function GamePage() {
 
     const fireInt = setInterval(() => {
       if (!role || gameOver) return;
-      
       const bData = { x: myPos.current.x, y: myPos.current.y - 25, v: -12 };
       socket.current.emit("fire", { ...bData, roomId });
       myBullets.current.push(bData);
-    }, 333); // Triple shooting rate
+    }, 333);
 
     return () => { unsub(); socket.current.disconnect(); clearInterval(fireInt); };
   }, [roomId, role, gameOver]);
@@ -68,10 +66,8 @@ export default function GamePage() {
     const t = e.touches[0];
     let nX = (t.clientX - rect.left) * (W / rect.width);
     let nY = (t.clientY - rect.top) * (H / rect.height);
-    
     nY = Math.max(H / 2 + 50, Math.min(H - 40, nY));
     nX = Math.max(25, Math.min(W - 25, nX));
-    
     myPos.current = { x: nX, y: nY };
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
@@ -82,12 +78,10 @@ export default function GamePage() {
 
     const render = () => {
       ctx.clearRect(0, 0, W, H);
-      
-      // Divider line
-      ctx.strokeStyle = "#444";
+      ctx.strokeStyle = "#333";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // DRAW ME (Cyan)
+      // PLAYER (Cyan)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -95,7 +89,7 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      // DRAW ENEMY (Red)
+      // ENEMY (Red)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -104,25 +98,32 @@ export default function GamePage() {
       ctx.fill();
 
       // MY BULLETS (Yellow)
-      ctx.fillStyle = "#fffb00";
       myBullets.current.forEach((b, i) => {
         b.y += b.v;
+        ctx.fillStyle = "#fffb00";
         ctx.fillRect(b.x - 2, b.y - 10, 4, 20);
+
+        // OFFENSIVE COLLISION: Check if my bullet hits enemy triangle
+        const dist = Math.hypot(b.x - enemyPos.current.x, b.y - enemyPos.current.y);
+        if (dist < 25) {
+          myBullets.current.splice(i, 1);
+          // Tell server the OTHER person took damage
+          const victim = role === 'host' ? 'guest' : 'host';
+          socket.current.emit("take_damage", { roomId, victimRole: victim });
+        }
+
         if (b.y < -50) myBullets.current.splice(i, 1);
       });
 
-      // ENEMY BULLETS (Orange - Mirrored)
-      ctx.fillStyle = "#ff8c00"; 
+      // ENEMY BULLETS (Orange)
       enemyBullets.current.forEach((b, i) => {
         b.y += b.v; 
-        
-        // Perspective Flip Logic
         let drawX = W - b.x;
         let drawY = H - b.y;
-
+        ctx.fillStyle = "#ff8c00";
         ctx.fillRect(drawX - 2, drawY - 10, 4, 20);
 
-        // Check if enemy bullet hits ME
+        // DEFENSIVE COLLISION: Check if enemy bullet hits ME
         if (Math.hypot(drawX - myPos.current.x, drawY - myPos.current.y) < 25) {
           enemyBullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role });
@@ -140,22 +141,24 @@ export default function GamePage() {
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
+        {/* Opponent Stat (Red) */}
         <div className="stat-box">
           <span className="name">{role === 'host' ? playerNames.guest : playerNames.host}</span>
-          <div className="mini-hp"><div className="fill enemy" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/></div>
-          <span className="hp-val">{health[role==='host'?'guest':'host']} HP</span>
+          <div className="mini-hp"><div className="fill opponent" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/></div>
+          <span className="hp-val red-text">{health[role==='host'?'guest':'host']} HP</span>
         </div>
+        {/* Local Stat (Blue) */}
         <div className="stat-box">
-          <span className="name">{role === 'host' ? playerNames.host : playerNames.guest}</span>
+          <span className="name">YOU ({role === 'host' ? playerNames.host : playerNames.guest})</span>
           <div className="mini-hp"><div className="fill local" style={{width: `${(health[role]/400)*100}%`}}/></div>
-          <span className="hp-val">{health[role]} HP</span>
+          <span className="hp-val blue-text">{health[role]} HP</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
-          <button onClick={() => navigate("/")}>EXIT</button>
+          <button onClick={() => navigate("/")}>REMATCH</button>
         </div>
       )}
     </div>
