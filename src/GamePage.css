@@ -1,42 +1,39 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
 .game-container {
-    width: 100vw; height: 100vh;
-    background: #000;
+    width: 100vw; height: 100vh; background: #000;
     display: flex; flex-direction: column; align-items: center;
-    overflow: hidden; touch-action: none;
-    font-family: 'Orbitron', sans-serif;
+    overflow: hidden; touch-action: none; font-family: 'Orbitron', sans-serif;
 }
 
 .header-dashboard {
-    width: 100%; padding: 8px 0;
-    background: #111; display: flex; justify-content: space-around;
-    border-bottom: 2px solid #222;
+    width: 100%; padding: 12px 0; background: #0a0a0a;
+    display: flex; justify-content: space-around; border-bottom: 2px solid #1a1a1a;
 }
 
-.stat-box { width: 42%; display: flex; flex-direction: column; align-items: center; }
+.stat-box { width: 44%; display: flex; flex-direction: column; align-items: center; }
 
-.name { font-size: 0.6rem; color: #888; margin-bottom: 3px; text-transform: uppercase; }
+.name { font-size: 0.6rem; color: #777; margin-bottom: 4px; text-transform: uppercase; }
 
-.hp-val { font-size: 0.7rem; color: #fff; margin-top: 2px; }
+.hp-val { font-size: 0.75rem; color: #fff; margin-top: 4px; font-weight: bold; }
 
-.mini-hp { width: 100%; height: 6px; background: #333; border-radius: 3px; overflow: hidden; }
+.mini-hp { width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden; }
 
-.fill { height: 100%; transition: width 0.2s linear; }
-.fill.enemy { background: #ff3e3e; }
-.fill.local { background: #00f2ff; }
+.fill { height: 100%; transition: width 0.15s ease-out; }
+.fill.enemy { background: #ff3e3e; box-shadow: 0 0 8px #ff3e3e; }
+.fill.local { background: #00f2ff; box-shadow: 0 0 8px #00f2ff; }
 
-canvas { flex-grow: 1; width: 100%; max-height: 88vh; background: radial-gradient(circle, #111 0%, #000 100%); }
+canvas { flex-grow: 1; width: 100%; max-height: 85vh; background: #000; }
 
 .overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.95);
     display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
 }
 
-.win { color: #00f2ff; text-shadow: 0 0 15px #00f2ff; }
-.lose { color: #ff3e3e; text-shadow: 0 0 15px #ff3e3e; }
+.win { color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
+.lose { color: #ff3e3e; text-shadow: 0 0 20px #ff3e3e; }
 
 button {
-    background: none; border: 1px solid #fff; color: #fff;
-    padding: 8px 24px; font-family: 'Orbitron'; cursor: pointer;
+    background: none; border: 1.5px solid #fff; color: #fff;
+    padding: 12px 30px; font-family: 'Orbitron'; cursor: pointer; margin-top: 25px;
 }
