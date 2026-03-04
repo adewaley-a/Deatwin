@@ -13,19 +13,18 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState({ host: "Player A", guest: "Player B" });
+  const [playerNames, setPlayerNames] = useState({ host: "A", guest: "B" });
   const [role, setRole] = useState(null);
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
-  const [muzzle, setMuzzle] = useState(false);
 
-  const W = 400;
-  const H = 700;
-
-  // Refs prevent the "ghosting" effect by holding current values
+  const W = 400, H = 700;
   const myPos = useRef({ x: 200, y: 600 });
   const enemyPos = useRef({ x: 200, y: 100 });
-  const bullets = useRef([]);
+  
+  // Separate arrays to solve the "Two Streams" bug
+  const myBullets = useRef([]);
+  const enemyBullets = useRef([]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
@@ -37,17 +36,14 @@ export default function GamePage() {
 
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
-
     socket.current.on("assign_role", (data) => setRole(data.role));
     
-    // Sync enemy position
     socket.current.on("opp_move", (data) => { 
       enemyPos.current = { x: data.x, y: data.y }; 
     });
 
-    // Receive opponent bullets
     socket.current.on("incoming_bullet", (b) => {
-      bullets.current.push(b);
+      enemyBullets.current.push(b);
     });
 
     socket.current.on("update_health", (h) => {
@@ -55,30 +51,15 @@ export default function GamePage() {
       if ((h.host <= 0 || h.guest <= 0) && role) setGameOver(h[role] <= 0 ? "lose" : "win");
     });
 
-    const fireInterval = setInterval(() => {
+    const fireInt = setInterval(() => {
       if (!role || gameOver) return;
       
-      // Bullets always spawn at the CURRENT shooter tip
-      const bData = { 
-        x: myPos.current.x, 
-        y: myPos.current.y - 25, 
-        v: -12, 
-        owner: role, 
-        roomId 
-      };
+      const bData = { x: myPos.current.x, y: myPos.current.y - 25, v: -12 };
+      socket.current.emit("fire", { ...bData, roomId });
+      myBullets.current.push(bData);
+    }, 333); // Triple shooting rate
 
-      socket.current.emit("fire", bData);
-      bullets.current.push(bData);
-      
-      setMuzzle(true);
-      setTimeout(() => setMuzzle(false), 50);
-    }, 333);
-
-    return () => { 
-      unsub(); 
-      socket.current.disconnect(); 
-      clearInterval(fireInterval); 
-    };
+    return () => { unsub(); socket.current.disconnect(); clearInterval(fireInt); };
   }, [roomId, role, gameOver]);
 
   const handleTouch = (e) => {
@@ -88,12 +69,10 @@ export default function GamePage() {
     let nX = (t.clientX - rect.left) * (W / rect.width);
     let nY = (t.clientY - rect.top) * (H / rect.height);
     
-    // Boundary locking to your half
     nY = Math.max(H / 2 + 50, Math.min(H - 40, nY));
     nX = Math.max(25, Math.min(W - 25, nX));
     
     myPos.current = { x: nX, y: nY };
-    // Send inverted coords so opponent sees you at top
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
 
@@ -104,11 +83,11 @@ export default function GamePage() {
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // Middle line
-      ctx.strokeStyle = "#222";
+      // Divider line
+      ctx.strokeStyle = "#444";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // LOCAL SHOOTER (Cyan)
+      // DRAW ME (Cyan)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -116,7 +95,7 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      // OPPONENT SHOOTER (Red)
+      // DRAW ENEMY (Red)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -124,49 +103,51 @@ export default function GamePage() {
       ctx.lineTo(enemyPos.current.x + 20, enemyPos.current.y - 15);
       ctx.fill();
 
-      // BULLET UPDATE LOOP
-      bullets.current.forEach((b, i) => {
+      // MY BULLETS (Yellow)
+      ctx.fillStyle = "#fffb00";
+      myBullets.current.forEach((b, i) => {
+        b.y += b.v;
+        ctx.fillRect(b.x - 2, b.y - 10, 4, 20);
+        if (b.y < -50) myBullets.current.splice(i, 1);
+      });
+
+      // ENEMY BULLETS (Orange - Mirrored)
+      ctx.fillStyle = "#ff8c00"; 
+      enemyBullets.current.forEach((b, i) => {
         b.y += b.v; 
+        
+        // Perspective Flip Logic
+        let drawX = W - b.x;
+        let drawY = H - b.y;
 
-        // CRITICAL FIX: Mirror the drawing of bullets NOT owned by you
-        let drawX = b.owner === role ? b.x : W - b.x;
-        let drawY = b.owner === role ? b.y : H - b.y;
+        ctx.fillRect(drawX - 2, drawY - 10, 4, 20);
 
-        ctx.fillStyle = "#fffb00";
-        ctx.fillRect(drawX - 2, drawY - 10, 4, 20); // Vertical slugs
-
-        // Collision logic (against your own shooter)
-        if (b.owner !== role && Math.hypot(drawX - myPos.current.x, drawY - myPos.current.y) < 25) {
-          bullets.current.splice(i, 1);
+        // Check if enemy bullet hits ME
+        if (Math.hypot(drawX - myPos.current.x, drawY - myPos.current.y) < 25) {
+          enemyBullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role });
         }
 
-        // Cleanup out-of-bounds
-        if (drawY < -50 || drawY > H + 50) bullets.current.splice(i, 1);
+        if (drawY > H + 50) enemyBullets.current.splice(i, 1);
       });
 
       frame = requestAnimationFrame(render);
     };
-
     render();
     return () => cancelAnimationFrame(frame);
-  }, [role, gameOver, roomId, muzzle]);
+  }, [role, gameOver, roomId]);
 
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
           <span className="name">{role === 'host' ? playerNames.guest : playerNames.host}</span>
-          <div className="mini-hp">
-             <div className="fill enemy" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/>
-          </div>
+          <div className="mini-hp"><div className="fill enemy" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/></div>
           <span className="hp-val">{health[role==='host'?'guest':'host']} HP</span>
         </div>
         <div className="stat-box">
           <span className="name">{role === 'host' ? playerNames.host : playerNames.guest}</span>
-          <div className="mini-hp">
-             <div className="fill local" style={{width: `${(health[role]/400)*100}%`}}/>
-          </div>
+          <div className="mini-hp"><div className="fill local" style={{width: `${(health[role]/400)*100}%`}}/></div>
           <span className="hp-val">{health[role]} HP</span>
         </div>
       </div>
@@ -174,7 +155,7 @@ export default function GamePage() {
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
-          <button onClick={() => navigate("/")}>REMATCH</button>
+          <button onClick={() => navigate("/")}>EXIT</button>
         </div>
       )}
     </div>
