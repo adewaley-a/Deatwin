@@ -22,8 +22,9 @@ export default function GamePage() {
   const W = 400;
   const H = 700;
 
-  const myPos = useRef({ x: 200, y: 550 });
-  const enemyPos = useRef({ x: 200, y: 150 });
+  // Ref-based positions to ensure smooth 60fps movement
+  const myPos = useRef({ x: 200, y: 600 });
+  const enemyPos = useRef({ x: 200, y: 100 });
   const bullets = useRef([]);
 
   useEffect(() => {
@@ -36,57 +37,82 @@ export default function GamePage() {
 
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
+
     socket.current.on("assign_role", (data) => setRole(data.role));
-    socket.current.on("opp_move", (data) => { enemyPos.current = data; });
-    socket.current.on("incoming_bullet", (b) => bullets.current.push(b));
-    socket.current.on("update_health", (h) => {
-      setHealth(h);
-      if ((h.host <= 0 || h.guest <= 0) && role) setGameOver(h[role] <= 0 ? "lose" : "win");
+    
+    // Update enemy position ref immediately on sync
+    socket.current.on("opp_move", (data) => { 
+      enemyPos.current = { x: data.x, y: data.y }; 
     });
 
+    // Receive incoming bullets from opponent
+    socket.current.on("incoming_bullet", (b) => {
+      bullets.current.push(b);
+    });
+
+    socket.current.on("update_health", (h) => {
+      setHealth(h);
+      if ((h.host <= 0 || h.guest <= 0) && role) {
+        setGameOver(h[role] <= 0 ? "lose" : "win");
+      }
+    });
+
+    // High-frequency shooting loop (333ms)
     const fireInterval = setInterval(() => {
       if (!role || gameOver) return;
+      
       const bData = { 
         x: myPos.current.x, 
-        y: myPos.current.y - 30, // Spawn at tip
+        y: myPos.current.y - 25, // Always spawn at current tip
         v: -12, 
         owner: role, 
         roomId 
       };
+
       socket.current.emit("fire", bData);
       bullets.current.push(bData);
+      
       setMuzzle(true);
       setTimeout(() => setMuzzle(false), 50);
     }, 333);
 
-    return () => { unsub(); socket.current.disconnect(); clearInterval(fireInterval); };
+    return () => { 
+      unsub(); 
+      socket.current.disconnect(); 
+      clearInterval(fireInterval); 
+    };
   }, [roomId, role, gameOver]);
 
   const handleTouch = (e) => {
     if (!role || gameOver) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const t = e.touches[0];
+    
     let nX = (t.clientX - rect.left) * (W / rect.width);
     let nY = (t.clientY - rect.top) * (H / rect.height);
     
+    // Boundary locking: Player stays in bottom half
     nY = Math.max(H / 2 + 50, Math.min(H - 40, nY));
     nX = Math.max(25, Math.min(W - 25, nX));
     
     myPos.current = { x: nX, y: nY };
+    
+    // Emit mirrored coordinates so opponent sees you at top
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
+
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // Draw Mid-line
+      // Draw static arena divider
       ctx.strokeStyle = "#222";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // LOCAL SHOOTER (Bottom Cyan)
+      // RENDER LOCAL PLAYER (Cyan)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -94,13 +120,12 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      // MUZZLE FLASH
       if (muzzle) {
-        ctx.fillStyle = "rgba(255, 255, 0, 0.4)";
+        ctx.fillStyle = "rgba(255, 255, 0, 0.5)";
         ctx.beginPath(); ctx.arc(myPos.current.x, myPos.current.y - 30, 10, 0, 7); ctx.fill();
       }
 
-      // OPPONENT SHOOTER (Top Red)
+      // RENDER OPPONENT (Red)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -108,30 +133,32 @@ export default function GamePage() {
       ctx.lineTo(enemyPos.current.x + 20, enemyPos.current.y - 15);
       ctx.fill();
 
-      // BULLET RENDERING
-      bullets.current.forEach((b, i) => {
-        // Apply vertical movement
-        b.y += b.v;
+      // BULLET SYNC & RENDER
+      [...bullets.current].forEach((b, i) => {
+        b.y += b.v; // Local movement
 
-        // MIRROR LOGIC: If I don't own it, flip the perspective
+        // SYNC DRAWING: Flip Y and X if bullet is not yours
         let drawX = b.owner === role ? b.x : W - b.x;
         let drawY = b.owner === role ? b.y : H - b.y;
 
         ctx.fillStyle = "#fffb00";
-        ctx.fillRect(drawX - 2, drawY - 8, 4, 16);
+        ctx.fillRect(drawX - 2, drawY - 10, 4, 20); // Bullet "slug" shape
 
-        // COLLISION: Only check bullets I DON'T own against MY triangle
+        // Collision logic (Hit detection against local player)
         if (b.owner !== role && Math.hypot(drawX - myPos.current.x, drawY - myPos.current.y) < 25) {
           bullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role });
         }
 
-        // Remove out-of-bounds bullets
-        if (drawY < -50 || drawY > H + 50) bullets.current.splice(i, 1);
+        // Cleanup bullets that leave the screen
+        if (drawY < -50 || drawY > H + 50) {
+          bullets.current.splice(i, 1);
+        }
       });
 
       frame = requestAnimationFrame(render);
     };
+
     render();
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId, muzzle]);
