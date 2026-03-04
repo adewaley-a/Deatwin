@@ -167,7 +167,7 @@ export default function GamePage() {
           <div className="mini-hp">
              <div className="fill local" style={{width: `${(health[role]/400)*100}%`}}/>
           </div>
-          <span className="hp-val">{health[role]} hp</span>
+          <span className="hp-val">{health[role]} HP</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
