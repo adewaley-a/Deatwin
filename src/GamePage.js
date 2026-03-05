@@ -13,8 +13,8 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState({ host: "...", guest: "..." });
-  const [role, setRole] = useState(null); // This is the key: 'host' or 'guest'
+  const [playerNames, setPlayerNames] = useState({ host: "Player A", guest: "Player B" });
+  const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
 
@@ -25,25 +25,22 @@ export default function GamePage() {
   const enemyBullets = useRef([]);
 
   useEffect(() => {
-    // 1. Fetch the real names from your Firebase DB
+    // 1. Fetch names from Firestore
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
         setPlayerNames({ 
-            host: d.hostName || "Host", 
-            guest: d.guestName || "Guest" 
+          host: d.hostName || "Host", 
+          guest: d.guestName || "Guest" 
         });
       }
     });
 
-    // 2. Setup Socket communication
+    // 2. Socket Connection
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
     
-    socket.current.on("assign_role", (data) => {
-      console.log("My assigned role is:", data.role);
-      setRole(data.role);
-    });
+    socket.current.on("assign_role", (data) => setRole(data.role));
     
     socket.current.on("opp_move", (data) => { 
       enemyPos.current = { x: data.x, y: data.y }; 
@@ -70,7 +67,7 @@ export default function GamePage() {
     return () => { unsub(); socket.current.disconnect(); clearInterval(fireInt); };
   }, [roomId, role, gameOver]);
 
-  // Movement Logic
+  // Handle Touch Movement
   const handleTouch = (e) => {
     if (!role || gameOver) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -83,7 +80,7 @@ export default function GamePage() {
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
 
-  // Canvas Render Loop
+  // Render Loop
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
@@ -92,7 +89,7 @@ export default function GamePage() {
       ctx.strokeStyle = "#333";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // Draw Local Player (Cyan)
+      // LOCAL SHOOTER (Blue)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -100,7 +97,7 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      // Draw Enemy Player (Red)
+      // ENEMY SHOOTER (Red)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -108,7 +105,7 @@ export default function GamePage() {
       ctx.lineTo(enemyPos.current.x + 20, enemyPos.current.y - 15);
       ctx.fill();
 
-      // Bullet Physics
+      // Bullet Physics & Collision
       myBullets.current.forEach((b, i) => {
         b.y += b.v;
         ctx.fillStyle = "#fffb00";
@@ -140,33 +137,33 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId]);
 
-  // --- IDENTITY LOGIC ---
-  // If I am host, local = host. If I am guest, local = guest.
-  const isHost = role === 'host';
-  const myDisplayName = isHost ? playerNames.host : playerNames.guest;
-  const enemyDisplayName = isHost ? playerNames.guest : playerNames.host;
-  const myDisplayHP = isHost ? health.host : health.guest;
-  const enemyDisplayHP = isHost ? health.guest : health.host;
+  // --- MIRROR LOGIC FOR NAMES AND HP ---
+  // If I am host, "YOU" is hostName. If I am guest, "YOU" is guestName.
+  const localName = role === 'host' ? playerNames.host : playerNames.guest;
+  const remoteName = role === 'host' ? playerNames.guest : playerNames.host;
+  
+  const localHP = role === 'host' ? health.host : health.guest;
+  const remoteHP = role === 'host' ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
-        {/* Opponent (Top/Red) */}
+        {/* TOP SECTION: The Opponent (Always Red) */}
         <div className="stat-box">
-          <span className="name">{enemyDisplayName}</span>
+          <span className="name">{remoteName}</span>
           <div className="mini-hp">
-            <div className="fill opponent" style={{width: `${(enemyDisplayHP/400)*100}%`}}/>
+            <div className="fill opponent" style={{width: `${(remoteHP/400)*100}%`}}/>
           </div>
-          <span className="hp-val red-text">{enemyDisplayHP} HP</span>
+          <span className="hp-val red-text">{remoteHP} HP</span>
         </div>
         
-        {/* Local Player (Bottom/Blue) */}
+        {/* BOTTOM SECTION: YOU (Always Blue) */}
         <div className="stat-box">
-          <span className="name">YOU ({myDisplayName})</span>
+          <span className="name">YOU ({localName})</span>
           <div className="mini-hp">
-            <div className="fill local" style={{width: `${(myDisplayHP/400)*100}%`}}/>
+            <div className="fill local" style={{width: `${(localHP/400)*100}%`}}/>
           </div>
-          <span className="hp-val blue-text">{myDisplayHP} HP</span>
+          <span className="hp-val blue-text">{localHP} HP</span>
         </div>
       </div>
       

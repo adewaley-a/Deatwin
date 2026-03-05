@@ -1,28 +1,126 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
+/* Main Container: Prevents scrolling and sets the sci-fi theme */
 .game-container {
-    width: 100vw; height: 100vh; background: #000;
-    display: flex; flex-direction: column; align-items: center;
-    overflow: hidden; touch-action: none; font-family: 'Orbitron', sans-serif;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    touch-action: none; /* Critical: Prevents browser pull-to-refresh during gameplay */
+    font-family: 'Orbitron', sans-serif;
 }
 
+/* Header Dashboard: Holds the names and HP bars */
 .header-dashboard {
-    width: 100%; padding: 12px 0; background: #0a0a0a;
-    display: flex; justify-content: space-around; border-bottom: 2px solid #222;
+    width: 100%;
+    padding: 10px 0;
+    background: #0a0a0a;
+    display: flex;
+    justify-content: space-around;
+    border-bottom: 2px solid #222;
+    z-index: 10;
 }
 
-.stat-box { width: 45%; display: flex; flex-direction: column; align-items: center; }
+/* Stat Box: Individual container for each player's info */
+.stat-box {
+    width: 45%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
-.name { font-size: 0.65rem; color: #aaa; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+/* Username Text */
+.name {
+    font-size: 0.65rem;
+    color: #888;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
 
-.hp-val { font-size: 0.9rem; margin-top: 5px; font-weight: bold; }
+/* HP Numerical Value */
+.hp-val {
+    font-size: 0.85rem;
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+/* Dynamic Color Classes for Text */
 .blue-text { color: #00f2ff; text-shadow: 0 0 8px #00f2ff; }
 .red-text { color: #ff3e3e; text-shadow: 0 0 8px #ff3e3e; }
 
-.mini-hp { width: 100%; height: 10px; background: #222; border-radius: 5px; overflow: hidden; }
+/* HP Bar Background */
+.mini-hp {
+    width: 100%;
+    height: 10px;
+    background: #1a1a1a;
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid #333;
+}
 
-.fill { height: 100%; transition: width 0.2s ease-out; }
-.fill.local { background: #00f2ff; box-shadow: 0 0 10px #00f2ff; }
-.fill.opponent { background: #ff3e3e; box-shadow: 0 0 10px #ff3e3e; }
+/* HP Fill: The actual moving bar */
+.fill {
+    height: 100%;
+    transition: width 0.2s ease-out; /* Makes HP drops look smooth */
+}
 
-canvas { flex-grow: 1; width: 100%; max-height: 80vh; background: #000; }
+/* Blue Bar for 'YOU' */
+.fill.local {
+    background: #00f2ff;
+    box-shadow: 0 0 10px #00f2ff;
+}
+
+/* Red Bar for 'OPPONENT' */
+.fill.opponent {
+    background: #ff3e3e;
+    box-shadow: 0 0 10px #ff3e3e;
+}
+
+/* The Game Canvas */
+canvas {
+    flex-grow: 1;
+    width: 100%;
+    max-height: 85vh;
+    background: #000;
+    display: block;
+}
+
+/* Game Over Overlay */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.win { color: #00f2ff; text-shadow: 0 0 20px #00f2ff; font-size: 3rem; }
+.lose { color: #ff3e3e; text-shadow: 0 0 20px #ff3e3e; font-size: 3rem; }
+
+/* Rematch/Exit Button */
+button {
+    background: transparent;
+    border: 2px solid #fff;
+    color: #fff;
+    padding: 12px 30px;
+    font-family: 'Orbitron';
+    cursor: pointer;
+    margin-top: 20px;
+    text-transform: uppercase;
+    transition: 0.3s;
+}
+
+button:hover {
+    background: #fff;
+    color: #000;
+}
