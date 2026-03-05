@@ -13,32 +13,37 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  // Names fetched from Firebase
-  const [playerNames, setPlayerNames] = useState({ host: "Player A", guest: "Player B" });
-  const [role, setRole] = useState(null); // 'host' or 'guest'
+  const [playerNames, setPlayerNames] = useState({ host: "...", guest: "..." });
+  const [role, setRole] = useState(null); // This is the key: 'host' or 'guest'
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
 
   const W = 400, H = 700;
   const myPos = useRef({ x: 200, y: 600 });
   const enemyPos = useRef({ x: 200, y: 100 });
-  
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
 
   useEffect(() => {
-    // Sync names from Firebase Room
+    // 1. Fetch the real names from your Firebase DB
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        setPlayerNames({ host: d.hostName || "Host", guest: d.guestName || "Guest" });
+        setPlayerNames({ 
+            host: d.hostName || "Host", 
+            guest: d.guestName || "Guest" 
+        });
       }
     });
 
+    // 2. Setup Socket communication
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
     
-    socket.current.on("assign_role", (data) => setRole(data.role));
+    socket.current.on("assign_role", (data) => {
+      console.log("My assigned role is:", data.role);
+      setRole(data.role);
+    });
     
     socket.current.on("opp_move", (data) => { 
       enemyPos.current = { x: data.x, y: data.y }; 
@@ -50,7 +55,9 @@ export default function GamePage() {
 
     socket.current.on("update_health", (h) => {
       setHealth(h);
-      if ((h.host <= 0 || h.guest <= 0) && role) setGameOver(h[role] <= 0 ? "lose" : "win");
+      if (role && (h.host <= 0 || h.guest <= 0)) {
+        setGameOver(h[role] <= 0 ? "lose" : "win");
+      }
     });
 
     const fireInt = setInterval(() => {
@@ -63,6 +70,7 @@ export default function GamePage() {
     return () => { unsub(); socket.current.disconnect(); clearInterval(fireInt); };
   }, [roomId, role, gameOver]);
 
+  // Movement Logic
   const handleTouch = (e) => {
     if (!role || gameOver) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -75,16 +83,16 @@ export default function GamePage() {
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
 
+  // Canvas Render Loop
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
-
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       ctx.strokeStyle = "#333";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // PLAYER (Cyan/Blue Shooter)
+      // Draw Local Player (Cyan)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -92,7 +100,7 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      // ENEMY (Red Shooter)
+      // Draw Enemy Player (Red)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -100,14 +108,12 @@ export default function GamePage() {
       ctx.lineTo(enemyPos.current.x + 20, enemyPos.current.y - 15);
       ctx.fill();
 
-      // MY BULLETS (Yellow)
+      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.y += b.v;
         ctx.fillStyle = "#fffb00";
         ctx.fillRect(b.x - 2, b.y - 10, 4, 20);
-
-        const dist = Math.hypot(b.x - enemyPos.current.x, b.y - enemyPos.current.y);
-        if (dist < 25) {
+        if (Math.hypot(b.x - enemyPos.current.x, b.y - enemyPos.current.y) < 25) {
           myBullets.current.splice(i, 1);
           const victim = role === 'host' ? 'guest' : 'host';
           socket.current.emit("take_damage", { roomId, victimRole: victim });
@@ -115,14 +121,12 @@ export default function GamePage() {
         if (b.y < -50) myBullets.current.splice(i, 1);
       });
 
-      // ENEMY BULLETS (Orange)
       enemyBullets.current.forEach((b, i) => {
         b.y += b.v; 
         let drawX = W - b.x;
         let drawY = H - b.y;
         ctx.fillStyle = "#ff8c00";
         ctx.fillRect(drawX - 2, drawY - 10, 4, 20);
-
         if (Math.hypot(drawX - myPos.current.x, drawY - myPos.current.y) < 25) {
           enemyBullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role });
@@ -136,27 +140,33 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId]);
 
-  // UI Variable Logic: Determine names and health based on role
-  const localName = role === 'host' ? playerNames.host : playerNames.guest;
-  const oppName = role === 'host' ? playerNames.guest : playerNames.host;
-  const localHP = role === 'host' ? health.host : health.guest;
-  const oppHP = role === 'host' ? health.guest : health.host;
+  // --- IDENTITY LOGIC ---
+  // If I am host, local = host. If I am guest, local = guest.
+  const isHost = role === 'host';
+  const myDisplayName = isHost ? playerNames.host : playerNames.guest;
+  const enemyDisplayName = isHost ? playerNames.guest : playerNames.host;
+  const myDisplayHP = isHost ? health.host : health.guest;
+  const enemyDisplayHP = isHost ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
-        {/* OPPONENT SECTION (RED) */}
+        {/* Opponent (Top/Red) */}
         <div className="stat-box">
-          <span className="name">{oppName}</span>
-          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oppHP/400)*100}%`}}/></div>
-          <span className="hp-val red-text">{oppHP} HP</span>
+          <span className="name">{enemyDisplayName}</span>
+          <div className="mini-hp">
+            <div className="fill opponent" style={{width: `${(enemyDisplayHP/400)*100}%`}}/>
+          </div>
+          <span className="hp-val red-text">{enemyDisplayHP} HP</span>
         </div>
         
-        {/* LOCAL SECTION (BLUE) */}
+        {/* Local Player (Bottom/Blue) */}
         <div className="stat-box">
-          <span className="name">YOU ({localName})</span>
-          <div className="mini-hp"><div className="fill local" style={{width: `${(localHP/400)*100}%`}}/></div>
-          <span className="hp-val blue-text">{localHP} HP</span>
+          <span className="name">YOU ({myDisplayName})</span>
+          <div className="mini-hp">
+            <div className="fill local" style={{width: `${(myDisplayHP/400)*100}%`}}/>
+          </div>
+          <span className="hp-val blue-text">{myDisplayHP} HP</span>
         </div>
       </div>
       
