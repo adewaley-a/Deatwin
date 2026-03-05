@@ -13,7 +13,7 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState({ host: "Player A", guest: "Player B" });
+  const [playerNames, setPlayerNames] = useState({ host: "Player 1", guest: "Player 2" });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
@@ -25,7 +25,7 @@ export default function GamePage() {
   const enemyBullets = useRef([]);
 
   useEffect(() => {
-    // 1. Fetch names from Firestore
+    // 1. Sync names from Firestore
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
@@ -67,7 +67,6 @@ export default function GamePage() {
     return () => { unsub(); socket.current.disconnect(); clearInterval(fireInt); };
   }, [roomId, role, gameOver]);
 
-  // Handle Touch Movement
   const handleTouch = (e) => {
     if (!role || gameOver) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -80,7 +79,6 @@ export default function GamePage() {
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
 
-  // Render Loop
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
@@ -105,7 +103,7 @@ export default function GamePage() {
       ctx.lineTo(enemyPos.current.x + 20, enemyPos.current.y - 15);
       ctx.fill();
 
-      // Bullet Physics & Collision
+      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.y += b.v;
         ctx.fillStyle = "#fffb00";
@@ -137,29 +135,29 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId]);
 
-  // --- MIRROR LOGIC FOR NAMES AND HP ---
-  // If I am host, "YOU" is hostName. If I am guest, "YOU" is guestName.
-  const localName = role === 'host' ? playerNames.host : playerNames.guest;
-  const remoteName = role === 'host' ? playerNames.guest : playerNames.host;
+  // --- THE CORRECTED IDENTITY MAPPING ---
+  // If I am host, local is host. If I am guest, local is guest.
+  const localPlayerName = role === 'host' ? playerNames.host : playerNames.guest;
+  const enemyPlayerName = role === 'host' ? playerNames.guest : playerNames.host;
   
   const localHP = role === 'host' ? health.host : health.guest;
-  const remoteHP = role === 'host' ? health.guest : health.host;
+  const enemyHP = role === 'host' ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
-        {/* TOP SECTION: The Opponent (Always Red) */}
+        {/* OPPONENT (RED) */}
         <div className="stat-box">
-          <span className="name">{remoteName}</span>
+          <span className="name">{enemyPlayerName}</span>
           <div className="mini-hp">
-            <div className="fill opponent" style={{width: `${(remoteHP/400)*100}%`}}/>
+            <div className="fill opponent" style={{width: `${(enemyHP/400)*100}%`}}/>
           </div>
-          <span className="hp-val red-text">{remoteHP} HP</span>
+          <span className="hp-val red-text">{enemyHP} HP</span>
         </div>
         
-        {/* BOTTOM SECTION: YOU (Always Blue) */}
+        {/* YOU (BLUE) */}
         <div className="stat-box">
-          <span className="name">YOU ({localName})</span>
+          <span className="name">YOU ({localPlayerName})</span>
           <div className="mini-hp">
             <div className="fill local" style={{width: `${(localHP/400)*100}%`}}/>
           </div>
@@ -172,7 +170,7 @@ export default function GamePage() {
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
-          <button onClick={() => navigate("/")}>REMATCH</button>
+          <button onClick={() => navigate("/")}>EXIT</button>
         </div>
       )}
     </div>
