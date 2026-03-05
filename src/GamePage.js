@@ -13,8 +13,9 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState({ host: "A", guest: "B" });
-  const [role, setRole] = useState(null);
+  // Names fetched from Firebase
+  const [playerNames, setPlayerNames] = useState({ host: "Player A", guest: "Player B" });
+  const [role, setRole] = useState(null); // 'host' or 'guest'
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
 
@@ -26,6 +27,7 @@ export default function GamePage() {
   const enemyBullets = useRef([]);
 
   useEffect(() => {
+    // Sync names from Firebase Room
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
@@ -35,6 +37,7 @@ export default function GamePage() {
 
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
+    
     socket.current.on("assign_role", (data) => setRole(data.role));
     
     socket.current.on("opp_move", (data) => { 
@@ -81,7 +84,7 @@ export default function GamePage() {
       ctx.strokeStyle = "#333";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // PLAYER (Cyan)
+      // PLAYER (Cyan/Blue Shooter)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -89,7 +92,7 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      // ENEMY (Red)
+      // ENEMY (Red Shooter)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -103,15 +106,12 @@ export default function GamePage() {
         ctx.fillStyle = "#fffb00";
         ctx.fillRect(b.x - 2, b.y - 10, 4, 20);
 
-        // OFFENSIVE COLLISION: Check if my bullet hits enemy triangle
         const dist = Math.hypot(b.x - enemyPos.current.x, b.y - enemyPos.current.y);
         if (dist < 25) {
           myBullets.current.splice(i, 1);
-          // Tell server the OTHER person took damage
           const victim = role === 'host' ? 'guest' : 'host';
           socket.current.emit("take_damage", { roomId, victimRole: victim });
         }
-
         if (b.y < -50) myBullets.current.splice(i, 1);
       });
 
@@ -123,12 +123,10 @@ export default function GamePage() {
         ctx.fillStyle = "#ff8c00";
         ctx.fillRect(drawX - 2, drawY - 10, 4, 20);
 
-        // DEFENSIVE COLLISION: Check if enemy bullet hits ME
         if (Math.hypot(drawX - myPos.current.x, drawY - myPos.current.y) < 25) {
           enemyBullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role });
         }
-
         if (drawY > H + 50) enemyBullets.current.splice(i, 1);
       });
 
@@ -138,23 +136,32 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId]);
 
+  // UI Variable Logic: Determine names and health based on role
+  const localName = role === 'host' ? playerNames.host : playerNames.guest;
+  const oppName = role === 'host' ? playerNames.guest : playerNames.host;
+  const localHP = role === 'host' ? health.host : health.guest;
+  const oppHP = role === 'host' ? health.guest : health.host;
+
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
-        {/* Opponent Stat (Red) */}
+        {/* OPPONENT SECTION (RED) */}
         <div className="stat-box">
-          <span className="name">{role === 'host' ? playerNames.guest : playerNames.host}</span>
-          <div className="mini-hp"><div className="fill opponent" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/></div>
-          <span className="hp-val red-text">{health[role==='host'?'guest':'host']} HP</span>
+          <span className="name">{oppName}</span>
+          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oppHP/400)*100}%`}}/></div>
+          <span className="hp-val red-text">{oppHP} HP</span>
         </div>
-        {/* Local Stat (Blue) */}
+        
+        {/* LOCAL SECTION (BLUE) */}
         <div className="stat-box">
-          <span className="name">YOU ({role === 'host' ? playerNames.host : playerNames.guest})</span>
-          <div className="mini-hp"><div className="fill local" style={{width: `${(health[role]/400)*100}%`}}/></div>
-          <span className="hp-val blue-text">{health[role]} HP</span>
+          <span className="name">YOU ({localName})</span>
+          <div className="mini-hp"><div className="fill local" style={{width: `${(localHP/400)*100}%`}}/></div>
+          <span className="hp-val blue-text">{localHP} HP</span>
         </div>
       </div>
+      
       <canvas ref={canvasRef} width={W} height={H} />
+      
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
