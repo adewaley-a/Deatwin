@@ -51,9 +51,8 @@ export default function GamePage() {
 
     const fireInt = setInterval(() => {
       if (!role || gameOver) return;
-      const speed = 14;
+      const speed = 15;
       const angle = myPos.current.angle;
-      // Calculate directional velocity
       const bData = { 
         x: myPos.current.x, 
         y: myPos.current.y - 25, 
@@ -63,7 +62,7 @@ export default function GamePage() {
       };
       socket.current.emit("fire", { ...bData, roomId });
       myBullets.current.push(bData);
-    }, 333);
+    }, 300);
 
     return () => { unsub(); socket.current.disconnect(); clearInterval(fireInt); };
   }, [roomId, role, gameOver]);
@@ -78,13 +77,15 @@ export default function GamePage() {
     nY = Math.max(H / 2 + 50, Math.min(H - 40, nY));
     nX = Math.max(25, Math.min(W - 25, nX));
 
-    // Calculate angle: 70 degrees max tilt (approx 1.22 radians)
-    // Tilt is based on horizontal distance from center of screen
-    const tiltRange = (70 * Math.PI) / 180;
-    const angle = ((nX - W/2) / (W/2)) * tiltRange;
+    // Calculate angle relative to current shooter position (max 70 degrees)
+    // dx is the horizontal distance from the shooter's center to the touch point
+    const dx = nX - myPos.current.x; 
+    const maxTilt = (70 * Math.PI) / 180;
+    // Sensitivity: how much drag causes full tilt (e.g., 60 pixels)
+    let angle = (dx / 60) * maxTilt;
+    angle = Math.max(-maxTilt, Math.min(maxTilt, angle));
 
     myPos.current = { x: nX, y: nY, angle: angle };
-    // Send mirrored data to opponent
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY, angle: -angle });
   };
 
@@ -95,23 +96,23 @@ export default function GamePage() {
     const drawShooter = (pos, color, isOpponent) => {
         ctx.save();
         ctx.translate(pos.x, pos.y);
-        if (isOpponent) ctx.rotate(Math.PI); // Flip 180 for enemy
+        if (isOpponent) ctx.rotate(Math.PI); 
         ctx.rotate(pos.angle);
 
-        // Pendulum Extension (The barrel)
+        // Pendulum Extension (Attached to BASE/Back of Triangle)
         ctx.strokeStyle = color;
         ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(0, -45); // Length of extension
+        ctx.moveTo(0, 15); // Start at center of the base
+        ctx.lineTo(0, 45); // Extend downwards from the base
         ctx.stroke();
 
-        // Shooter Body
+        // Shooter Body (Tip points to bullets' direction)
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.moveTo(0, -25);
-        ctx.lineTo(-20, 15);
-        ctx.lineTo(20, 15);
+        ctx.moveTo(0, -25); // Tip
+        ctx.lineTo(-20, 15); // Base Left
+        ctx.lineTo(20, 15);  // Base Right
         ctx.fill();
         ctx.restore();
     };
@@ -124,16 +125,11 @@ export default function GamePage() {
       drawShooter(myPos.current, "#00f2ff", false);
       drawShooter(enemyPos.current, "#ff3e3e", true);
 
-      // MY BULLETS
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(b.angle);
-        ctx.fillStyle = "#fffb00";
-        ctx.fillRect(-2, -10, 4, 20);
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
+        ctx.fillStyle = "#fffb00"; ctx.fillRect(-2, -10, 4, 20);
         ctx.restore();
-
         if (Math.hypot(b.x - enemyPos.current.x, b.y - enemyPos.current.y) < 25) {
           myBullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role === 'host' ? 'guest' : 'host' });
@@ -141,21 +137,12 @@ export default function GamePage() {
         if (b.y < -50 || b.x < -50 || b.x > W + 50) myBullets.current.splice(i, 1);
       });
 
-      // ENEMY BULLETS (Mirrored)
       enemyBullets.current.forEach((b, i) => {
-        // Apply velocity in enemy's coordinate space
         b.x += b.vx; b.y += b.vy;
-        // Mirror coordinates for local display
-        let dX = W - b.x;
-        let dY = H - b.y;
-
-        ctx.save();
-        ctx.translate(dX, dY);
-        ctx.rotate(-b.angle + Math.PI); // Rotate 180 + mirrored angle
-        ctx.fillStyle = "#ff8c00";
-        ctx.fillRect(-2, -10, 4, 20);
+        let dX = W - b.x; let dY = H - b.y;
+        ctx.save(); ctx.translate(dX, dY); ctx.rotate(-b.angle + Math.PI);
+        ctx.fillStyle = "#ff8c00"; ctx.fillRect(-2, -10, 4, 20);
         ctx.restore();
-
         if (Math.hypot(dX - myPos.current.x, dY - myPos.current.y) < 25) {
           enemyBullets.current.splice(i, 1);
           socket.current.emit("take_damage", { roomId, victimRole: role });
@@ -169,23 +156,24 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId]);
 
+  // IDENTITY FIX: Map strictly based on role
   const localName = role === 'host' ? playerNames.host : playerNames.guest;
   const oppName = role === 'host' ? playerNames.guest : playerNames.host;
-  const lHP = role === 'host' ? health.host : health.guest;
-  const oHP = role === 'host' ? health.guest : health.host;
+  const localHP = role === 'host' ? health.host : health.guest;
+  const oppHP = role === 'host' ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
           <span className="name">{oppName}</span>
-          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oHP/400)*100}%`}}/></div>
-          <span className="hp-val red-text">{oHP} HP</span>
+          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oppHP/400)*100}%`}}/></div>
+          <span className="hp-val red-text">{oppHP} HP</span>
         </div>
         <div className="stat-box">
           <span className="name">YOU ({localName})</span>
-          <div className="mini-hp"><div className="fill local" style={{width: `${(lHP/400)*100}%`}}/></div>
-          <span className="hp-val blue-text">{lHP} HP</span>
+          <div className="mini-hp"><div className="fill local" style={{width: `${(localHP/400)*100}%`}}/></div>
+          <span className="hp-val blue-text">{localHP} HP</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
