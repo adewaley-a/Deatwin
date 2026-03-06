@@ -13,7 +13,7 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState({ host: "Player 1", guest: "Player 2" });
+  const [playerNames, setPlayerNames] = useState({ host: "...", guest: "..." });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
@@ -40,7 +40,9 @@ export default function GamePage() {
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
     
-    socket.current.on("assign_role", (data) => setRole(data.role));
+    socket.current.on("assign_role", (data) => {
+      setRole(data.role); // Server tells us if we are 'host' or 'guest'
+    });
     
     socket.current.on("opp_move", (data) => { 
       enemyPos.current = { x: data.x, y: data.y }; 
@@ -53,6 +55,7 @@ export default function GamePage() {
     socket.current.on("update_health", (h) => {
       setHealth(h);
       if (role && (h.host <= 0 || h.guest <= 0)) {
+        // Check our specific role's health to determine win/loss
         setGameOver(h[role] <= 0 ? "lose" : "win");
       }
     });
@@ -136,7 +139,7 @@ export default function GamePage() {
   }, [role, gameOver, roomId]);
 
   // --- THE CORRECTED IDENTITY MAPPING ---
-  // If I am host, local is host. If I am guest, local is guest.
+  // We use the 'role' assigned by the backend to determine which name goes where
   const localPlayerName = role === 'host' ? playerNames.host : playerNames.guest;
   const enemyPlayerName = role === 'host' ? playerNames.guest : playerNames.host;
   
@@ -146,7 +149,7 @@ export default function GamePage() {
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
-        {/* OPPONENT (RED) */}
+        {/* OPPONENT (RED) - Always Top */}
         <div className="stat-box">
           <span className="name">{enemyPlayerName}</span>
           <div className="mini-hp">
@@ -155,7 +158,7 @@ export default function GamePage() {
           <span className="hp-val red-text">{enemyHP} HP</span>
         </div>
         
-        {/* YOU (BLUE) */}
+        {/* YOU (BLUE) - Always Local */}
         <div className="stat-box">
           <span className="name">YOU ({localPlayerName})</span>
           <div className="mini-hp">

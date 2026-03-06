@@ -1,18 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
+/* Main Container */
 .game-container {
     width: 100vw;
     height: 100vh;
     background: #000;
     display: flex;
-    flex-grow: 1;
     flex-direction: column;
     align-items: center;
     overflow: hidden;
-    touch-action: none; /* Prevents screen wobbling on mobile */
+    touch-action: none; /* Critical for mobile: prevents scrolling while playing */
     font-family: 'Orbitron', sans-serif;
 }
 
+/* UI Header Dashboard */
 .header-dashboard {
     width: 100%;
     padding: 15px 0;
@@ -23,6 +24,7 @@
     z-index: 10;
 }
 
+/* Individual Player Stats */
 .stat-box {
     width: 42%;
     display: flex;
@@ -36,6 +38,10 @@
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 1.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .hp-val {
@@ -44,10 +50,11 @@
     font-weight: bold;
 }
 
-/* Color Identity Classes */
-.blue-text { color: #00f2ff; text-shadow: 0 0 10px #00f2ff; }
-.red-text { color: #ff3e3e; text-shadow: 0 0 10px #ff3e3e; }
+/* Color Identity - Applied to text in YOU() and Opponent */
+.blue-text { color: #00f2ff; text-shadow: 0 0 10px rgba(0, 242, 255, 0.6); }
+.red-text { color: #ff3e3e; text-shadow: 0 0 10px rgba(255, 62, 62, 0.6); }
 
+/* HP Bar Container */
 .mini-hp {
     width: 100%;
     height: 12px;
@@ -55,25 +62,27 @@
     border-radius: 6px;
     overflow: hidden;
     border: 1px solid #333;
+    position: relative;
 }
 
+/* The actual bar filling */
 .fill {
     height: 100%;
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* This matches the YOU section */
+/* Identity-linked bar colors */
 .fill.local {
     background: #00f2ff;
     box-shadow: 0 0 15px #00f2ff;
 }
 
-/* This matches the Opponent section */
 .fill.opponent {
     background: #ff3e3e;
     box-shadow: 0 0 15px #ff3e3e;
 }
 
+/* Game Canvas */
 canvas {
     flex-grow: 1;
     width: 100%;
@@ -82,10 +91,11 @@ canvas {
     display: block;
 }
 
+/* Game Over Screen */
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.9);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -93,9 +103,21 @@ canvas {
     z-index: 100;
 }
 
-.win { color: #00f2ff; text-shadow: 0 0 30px #00f2ff; font-size: 3.5rem; }
-.lose { color: #ff3e3e; text-shadow: 0 0 30px #ff3e3e; font-size: 3.5rem; }
+.win { 
+    color: #00f2ff; 
+    text-shadow: 0 0 30px #00f2ff; 
+    font-size: 3.5rem; 
+    margin-bottom: 10px;
+}
 
+.lose { 
+    color: #ff3e3e; 
+    text-shadow: 0 0 30px #ff3e3e; 
+    font-size: 3.5rem; 
+    margin-bottom: 10px;
+}
+
+/* Buttons */
 button {
     background: transparent;
     border: 2px solid #fff;
@@ -112,4 +134,5 @@ button {
 button:hover {
     background: #fff;
     color: #000;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
 }
