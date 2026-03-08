@@ -7,7 +7,6 @@ import "./GamePage.css";
 
 const SOCKET_URL = "https://deatgame-server.onrender.com"; 
 
-// Linear Interpolation helper: smoothly moves a value toward a target
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
 export default function GamePage() {
@@ -28,10 +27,9 @@ export default function GamePage() {
   const isDraggingShip = useRef(false);
   const isSteering = useRef(false);
 
-  // Enemy "Silk" Movement Refs
   const enemyPos = useRef({ x: 200, y: 100 });
   const enemyRot = useRef(0);
-  const enemyTarget = useRef({ x: 200, y: 100, rot: 0 }); // The latest data from socket
+  const enemyTarget = useRef({ x: 200, y: 100, rot: 0 }); 
   
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
@@ -49,7 +47,6 @@ export default function GamePage() {
     socket.current.on("assign_role", (data) => setRole(data.role));
     
     socket.current.on("opp_move", (data) => { 
-      // Instead of jumping, we set the TARGET
       enemyTarget.current = { x: data.x, y: data.y, rot: data.rot }; 
     });
 
@@ -68,20 +65,31 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Shooting Logic (Straight Streams)
+  // Shooting Logic: Vector alignment
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
       const speed = 14;
       const angle = myRot.current;
-      const tipX = myPos.current.x;
-      const tipY = myPos.current.y - Math.cos(angle) * 25; 
+      const apexDist = 25; 
+
+      // Apex spawn point
+      const tipX = myPos.current.x + Math.sin(angle) * apexDist;
+      const tipY = myPos.current.y - Math.cos(angle) * apexDist;
 
       const vx = Math.sin(angle) * speed;
       const vy = -Math.cos(angle) * speed;
 
       const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
-      socket.current.emit("fire", { ...bData, roomId });
+      // Send bullet data to opponent with mirrored velocities and rotation
+      socket.current.emit("fire", { 
+        roomId, 
+        x: W - tipX, 
+        y: H - tipY, 
+        vx: -vx, 
+        vy: -vy, 
+        rot: -angle 
+      });
       myBullets.current.push(bData);
     }, 250);
     return () => clearInterval(fireInt);
@@ -152,8 +160,6 @@ export default function GamePage() {
       ctx.strokeStyle = "#333"; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // INTERPOLATION (The Silk Effect)
-      // We move the current position 15% of the way to the target every frame (60fps)
       enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.15);
       enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.15);
       enemyRot.current = lerp(enemyRot.current, enemyTarget.current.rot, 0.15);
@@ -161,20 +167,28 @@ export default function GamePage() {
       drawShooter(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
       drawShooter(enemyPos.current.x, enemyPos.current.y, enemyRot.current, "#ff3e3e", true);
 
+      // Rendering Bullet Streams
       [myBullets, enemyBullets].forEach((ref, idx) => {
         const isLocal = idx === 0;
         ref.current.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
-          let dX = isLocal ? b.x : W - b.x;
-          let dY = isLocal ? b.y : H - b.y;
-          ctx.save(); ctx.translate(dX, dY); ctx.rotate(isLocal ? b.rot : -b.rot);
-          ctx.fillStyle = isLocal ? "#fffb00" : "#ff8c00"; ctx.fillRect(-2, -10, 4, 20); ctx.restore();
+          
+          ctx.save();
+          ctx.translate(b.x, b.y);
+          ctx.fillStyle = isLocal ? "#fffb00" : "#ff8c00";
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = ctx.fillStyle;
+          ctx.beginPath();
+          ctx.arc(0, 0, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
           const target = isLocal ? enemyPos.current : myPos.current;
-          if (Math.hypot(dX - target.x, dY - target.y) < 25) {
+          if (Math.hypot(b.x - target.x, b.y - target.y) < 25) {
             ref.current.splice(i, 1);
             socket.current.emit("take_damage", { roomId, victimRole: isLocal ? (role==='host'?'guest':'host') : role });
           }
-          if (dY < -50 || dY > H + 50 || dX < -50 || dX > W + 50) ref.current.splice(i, 1);
+          if (b.y < -50 || b.y > H + 50 || b.x < -50 || b.x > W + 50) ref.current.splice(i, 1);
         });
       });
       frame = requestAnimationFrame(render);
@@ -183,22 +197,23 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, roomId]);
 
-  const isHost = role === 'host';
-  const localName = isHost ? playerNames.host : playerNames.guest;
-  const oppName = isHost ? playerNames.guest : playerNames.host;
+  const localName = role === 'host' ? playerNames.host : playerNames.guest;
+  const oppName = role === 'host' ? playerNames.guest : playerNames.host;
+  const localHP = role === 'host' ? health.host : health.guest;
+  const oppHP = role === 'host' ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
           <span className="name">{oppName}</span>
-          <div className="mini-hp"><div className="fill opponent" style={{width: `${(health[isHost?'guest':'host']/400)*100}%`}}/></div>
-          <span className="hp-val red-text">{health[isHost?'guest':'host']} HP</span>
+          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oppHP/400)*100}%`}}/></div>
+          <span className="hp-val red-text">{oppHP} HP</span>
         </div>
         <div className="stat-box">
           <span className="name">YOU ({localName})</span>
-          <div className="mini-hp"><div className="fill local" style={{width: `${(health[role]/400)*100}%`}}/></div>
-          <span className="hp-val blue-text">{health[role]} HP</span>
+          <div className="mini-hp"><div className="fill local" style={{width: `${(localHP/400)*100}%`}}/></div>
+          <span className="hp-val blue-text">{localHP} HP</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />

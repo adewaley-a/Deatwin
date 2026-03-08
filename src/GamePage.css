@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
+/* Core Layout */
 .game-container {
     width: 100vw;
     height: 100vh;
@@ -8,42 +9,119 @@
     flex-direction: column;
     align-items: center;
     overflow: hidden;
-    touch-action: none;
+    touch-action: none; /* Prevents browser pull-to-refresh */
     font-family: 'Orbitron', sans-serif;
+    user-select: none;
 }
 
+/* Header Dashboard */
 .header-dashboard {
     width: 100%;
     padding: 15px 0;
-    background: #050505;
+    background: linear-gradient(180deg, #0a0a0a 0%, #000 100%);
     display: flex;
     justify-content: space-around;
-    border-bottom: 2px solid #1a1a1a;
+    border-bottom: 1px solid #222;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     z-index: 10;
 }
 
 .stat-box {
-    width: 42%;
+    width: 44%;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-.name { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1.5px; }
-.hp-val { font-size: 0.9rem; margin-top: 6px; font-weight: bold; }
-.blue-text { color: #00f2ff; text-shadow: 0 0 10px #00f2ff; }
-.red-text { color: #ff3e3e; text-shadow: 0 0 10px #ff3e3e; }
+.name { 
+    font-size: 0.7rem; 
+    color: #aaa; 
+    text-transform: uppercase; 
+    letter-spacing: 2px; 
+    margin-bottom: 5px;
+}
 
-.mini-hp { width: 100%; height: 100%; background: #111; border-radius: 6px; overflow: hidden; border: 1px solid #333; height: 12px; }
-.fill { height: 100%; transition: width 0.3s; }
-.fill.local { background: #00f2ff; box-shadow: 0 0 15px #00f2ff; }
-.fill.opponent { background: #ff3e3e; box-shadow: 0 0 15px #ff3e3e; }
+.hp-val { 
+    font-size: 0.85rem; 
+    margin-top: 8px; 
+    font-weight: 700; 
+}
 
-canvas { flex-grow: 1; width: 100%; max-height: 80vh; background: radial-gradient(circle, #0a0a0a 0%, #000 100%); display: block; }
+.blue-text { color: #00f2ff; text-shadow: 0 0 8px rgba(0, 242, 255, 0.6); }
+.red-text { color: #ff3e3e; text-shadow: 0 0 8px rgba(255, 62, 62, 0.6); }
 
-.overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-.countdown-text { font-size: 8rem; color: #fff; text-shadow: 0 0 20px #00f2ff; }
-.win { color: #00f2ff; text-shadow: 0 0 30px #00f2ff; font-size: 3.5rem; }
-.lose { color: #ff3e3e; text-shadow: 0 0 30px #ff3e3e; font-size: 3.5rem; }
+/* Health Bars */
+.mini-hp { 
+    width: 100%; 
+    height: 10px; 
+    background: rgba(255, 255, 255, 0.05); 
+    border-radius: 20px; 
+    overflow: hidden; 
+    border: 1px solid #333; 
+    position: relative;
+}
 
-button { background: transparent; border: 2px solid #fff; color: #fff; padding: 12px 40px; font-family: 'Orbitron'; cursor: pointer; margin-top: 30px; }
+.fill { 
+    height: 100%; 
+    transition: width 0.2s ease-out; 
+}
+
+.fill.local { 
+    background: linear-gradient(90deg, #0088ff, #00f2ff); 
+    box-shadow: 0 0 15px #00f2ff; 
+}
+
+.fill.opponent { 
+    background: linear-gradient(90deg, #b30000, #ff3e3e); 
+    box-shadow: 0 0 15px #ff3e3e; 
+}
+
+/* Game Canvas */
+canvas { 
+    flex-grow: 1; 
+    width: 100%; 
+    max-height: 85vh; 
+    background: radial-gradient(circle at center, #0d0d0d 0%, #000 100%);
+    display: block; 
+}
+
+/* Overlays (Countdown/Game Over) */
+.overlay { 
+    position: fixed; 
+    inset: 0; 
+    background: rgba(0, 0, 0, 0.8); 
+    backdrop-filter: blur(10px);
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 100; 
+}
+
+.countdown-text { 
+    font-size: 9rem; 
+    color: #fff; 
+    text-shadow: 0 0 30px #00f2ff; 
+    font-weight: 700;
+}
+
+.win { color: #00f2ff; text-shadow: 0 0 40px #00f2ff; font-size: 4rem; }
+.lose { color: #ff3e3e; text-shadow: 0 0 40px #ff3e3e; font-size: 4rem; }
+
+button { 
+    background: rgba(255, 255, 255, 0.1); 
+    border: 1px solid #fff; 
+    color: #fff; 
+    padding: 15px 50px; 
+    font-family: 'Orbitron'; 
+    font-size: 1rem;
+    cursor: pointer; 
+    margin-top: 40px; 
+    letter-spacing: 3px;
+    transition: all 0.3s;
+}
+
+button:hover {
+    background: #fff;
+    color: #000;
+}
