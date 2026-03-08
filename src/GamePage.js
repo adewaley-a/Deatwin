@@ -65,7 +65,7 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Shooting Logic: Vector alignment
+  // Shooting Logic
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -73,7 +73,7 @@ export default function GamePage() {
       const angle = myRot.current;
       const apexDist = 25; 
 
-      // Apex spawn point
+      // My apex (Points Up)
       const tipX = myPos.current.x + Math.sin(angle) * apexDist;
       const tipY = myPos.current.y - Math.cos(angle) * apexDist;
 
@@ -81,7 +81,8 @@ export default function GamePage() {
       const vy = -Math.cos(angle) * speed;
 
       const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
-      // Send bullet data to opponent with mirrored velocities and rotation
+      
+      // Emit mirrored: Rotation and Velocity are inverted for the other screen
       socket.current.emit("fire", { 
         roomId, 
         x: W - tipX, 
@@ -105,8 +106,8 @@ export default function GamePage() {
     if (e.type === "touchstart") {
       const distToSlider = Math.hypot(touchX - myPos.current.x, touchY - (myPos.current.y + 75));
       const distToShip = Math.hypot(touchX - myPos.current.x, touchY - myPos.current.y);
-      if (distToSlider < 60) { isSteering.current = true; isDraggingShip.current = false; }
-      else if (distToShip < 80) { isDraggingShip.current = true; isSteering.current = false; }
+      if (distToSlider < 60) { isSteering.current = true; }
+      else if (distToShip < 80) { isDraggingShip.current = true; }
     }
 
     if (e.type === "touchmove") {
@@ -120,7 +121,7 @@ export default function GamePage() {
       }
     }
 
-    if (e.type === "touchend" || e.type === "touchcancel") {
+    if (e.type === "touchend") {
       isSteering.current = false;
       isDraggingShip.current = false;
     }
@@ -135,8 +136,10 @@ export default function GamePage() {
     const drawShooter = (x, y, rot, color, isEnemy) => {
         ctx.save();
         ctx.translate(x, y);
-        const deckY = 60; 
+
+        // Control Deck (Only for local player)
         if (!isEnemy) {
+          const deckY = 60;
           ctx.strokeStyle = color; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(0, deckY, 15, 0, Math.PI * 2); ctx.stroke();
           ctx.save(); ctx.translate(0, deckY); ctx.rotate(rot * 1.5);
@@ -146,12 +149,21 @@ export default function GamePage() {
           const knobX = (rot / 1.22) * 40;
           ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(knobX, deckY + 25, 8, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.rotate(rot);
+
+        // --- FIXED MIRRORING ---
+        // If it's the enemy, we rotate the whole coordinate system by 180 deg (Math.PI)
+        if (isEnemy) ctx.rotate(Math.PI); 
+        
+        ctx.rotate(rot); // Apply the steered tilt
         ctx.fillStyle = color; ctx.shadowBlur = 15; ctx.shadowColor = color;
+        
         ctx.beginPath();
-        const tipY = isEnemy ? 25 : -25;
-        const baseTop = isEnemy ? -15 : 15;
-        ctx.moveTo(0, tipY); ctx.lineTo(-20, baseTop); ctx.lineTo(20, baseTop); ctx.fill();
+        // Now "Up" (-25) is always the tip facing the opponent
+        ctx.moveTo(0, -25); 
+        ctx.lineTo(-20, 15);
+        ctx.lineTo(20, 15);
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
     };
 
@@ -167,26 +179,21 @@ export default function GamePage() {
       drawShooter(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
       drawShooter(enemyPos.current.x, enemyPos.current.y, enemyRot.current, "#ff3e3e", true);
 
-      // Rendering Bullet Streams
-      [myBullets, enemyBullets].forEach((ref, idx) => {
-        const isLocal = idx === 0;
+      [myBullets, enemyBullets].forEach((ref) => {
         ref.current.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
           
           ctx.save();
           ctx.translate(b.x, b.y);
-          ctx.fillStyle = isLocal ? "#fffb00" : "#ff8c00";
-          ctx.shadowBlur = 10;
-          ctx.shadowColor = ctx.fillStyle;
-          ctx.beginPath();
-          ctx.arc(0, 0, 6, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.fillStyle = (ref === myBullets) ? "#fffb00" : "#ff8c00";
+          ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
+          ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
           ctx.restore();
 
-          const target = isLocal ? enemyPos.current : myPos.current;
+          const target = (ref === myBullets) ? enemyPos.current : myPos.current;
           if (Math.hypot(b.x - target.x, b.y - target.y) < 25) {
             ref.current.splice(i, 1);
-            socket.current.emit("take_damage", { roomId, victimRole: isLocal ? (role==='host'?'guest':'host') : role });
+            socket.current.emit("take_damage", { roomId, victimRole: (ref === myBullets) ? (role==='host'?'guest':'host') : role });
           }
           if (b.y < -50 || b.y > H + 50 || b.x < -50 || b.x > W + 50) ref.current.splice(i, 1);
         });
@@ -217,7 +224,7 @@ export default function GamePage() {
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
-      {countdown > 0 && <div className="overlay countdown-bg"><h1 className="countdown-text">{countdown}</h1></div>}
+      {countdown > 0 && <div className="overlay"><h1 className="countdown-text">{countdown}</h1></div>}
       {gameOver && <div className="overlay"><h1 className={gameOver}>{gameOver.toUpperCase()}</h1><button onClick={() => navigate("/")}>EXIT</button></div>}
     </div>
   );
