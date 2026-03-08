@@ -29,84 +29,21 @@
     align-items: center;
 }
 
-.name {
-    font-size: 0.7rem;
-    color: #888;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-}
-
-.hp-val {
-    font-size: 0.9rem;
-    margin-top: 6px;
-    font-weight: bold;
-}
-
+.name { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1.5px; }
+.hp-val { font-size: 0.9rem; margin-top: 6px; font-weight: bold; }
 .blue-text { color: #00f2ff; text-shadow: 0 0 10px #00f2ff; }
 .red-text { color: #ff3e3e; text-shadow: 0 0 10px #ff3e3e; }
 
-.mini-hp {
-    width: 100%;
-    height: 12px;
-    background: #111;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #333;
-}
-
-.fill {
-    height: 100%;
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
+.mini-hp { width: 100%; height: 100%; background: #111; border-radius: 6px; overflow: hidden; border: 1px solid #333; height: 12px; }
+.fill { height: 100%; transition: width 0.3s; }
 .fill.local { background: #00f2ff; box-shadow: 0 0 15px #00f2ff; }
 .fill.opponent { background: #ff3e3e; box-shadow: 0 0 15px #ff3e3e; }
 
-canvas {
-    flex-grow: 1;
-    width: 100%;
-    max-height: 80vh;
-    background: radial-gradient(circle, #0a0a0a 0%, #000 100%);
-    display: block;
-}
+canvas { flex-grow: 1; width: 100%; max-height: 80vh; background: radial-gradient(circle, #0a0a0a 0%, #000 100%); display: block; }
 
-.overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
-}
+.overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+.countdown-text { font-size: 8rem; color: #fff; text-shadow: 0 0 20px #00f2ff; }
+.win { color: #00f2ff; text-shadow: 0 0 30px #00f2ff; font-size: 3.5rem; }
+.lose { color: #ff3e3e; text-shadow: 0 0 30px #ff3e3e; font-size: 3.5rem; }
 
-.countdown-bg {
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(8px);
-    pointer-events: none;
-}
-
-.countdown-text {
-    font-size: 8rem;
-    color: #fff;
-    text-shadow: 0 0 20px #00f2ff, 0 0 40px #00f2ff;
-    animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
-
-button {
-    background: transparent;
-    border: 2px solid #fff;
-    color: #fff;
-    padding: 12px 40px;
-    font-family: 'Orbitron';
-    cursor: pointer;
-    margin-top: 30px;
-}
+button { background: transparent; border: 2px solid #fff; color: #fff; padding: 12px 40px; font-family: 'Orbitron'; cursor: pointer; margin-top: 30px; }
