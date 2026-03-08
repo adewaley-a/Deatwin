@@ -13,7 +13,7 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState({ host: "...", guest: "..." });
+  const [playerNames, setPlayerNames] = useState({ host: "Player 1", guest: "Player 2" });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
@@ -25,7 +25,6 @@ export default function GamePage() {
   const enemyBullets = useRef([]);
 
   useEffect(() => {
-    // 1. Sync names from Firestore
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
@@ -36,13 +35,10 @@ export default function GamePage() {
       }
     });
 
-    // 2. Socket Connection
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
     
-    socket.current.on("assign_role", (data) => {
-      setRole(data.role); // Server tells us if we are 'host' or 'guest'
-    });
+    socket.current.on("assign_role", (data) => setRole(data.role));
     
     socket.current.on("opp_move", (data) => { 
       enemyPos.current = { x: data.x, y: data.y }; 
@@ -55,7 +51,6 @@ export default function GamePage() {
     socket.current.on("update_health", (h) => {
       setHealth(h);
       if (role && (h.host <= 0 || h.guest <= 0)) {
-        // Check our specific role's health to determine win/loss
         setGameOver(h[role] <= 0 ? "lose" : "win");
       }
     });
@@ -106,7 +101,6 @@ export default function GamePage() {
       ctx.lineTo(enemyPos.current.x + 20, enemyPos.current.y - 15);
       ctx.fill();
 
-      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.y += b.v;
         ctx.fillStyle = "#fffb00";
@@ -138,29 +132,32 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId]);
 
-  // --- THE CORRECTED IDENTITY MAPPING ---
-  // We use the 'role' assigned by the backend to determine which name goes where
-  const localPlayerName = role === 'host' ? playerNames.host : playerNames.guest;
-  const enemyPlayerName = role === 'host' ? playerNames.guest : playerNames.host;
+  // --- DYNAMIC IDENTITY LOGIC ---
+  // If I am 'host', YOU is 'host' and Opponent is 'guest'.
+  // If I am 'guest', YOU is 'guest' and Opponent is 'host'.
+  const isHost = role === 'host';
   
-  const localHP = role === 'host' ? health.host : health.guest;
-  const enemyHP = role === 'host' ? health.guest : health.host;
+  const localName = isHost ? playerNames.host : playerNames.guest;
+  const oppName = isHost ? playerNames.guest : playerNames.host;
+  
+  const localHP = isHost ? health.host : health.guest;
+  const oppHP = isHost ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
-        {/* OPPONENT (RED) - Always Top */}
+        {/* OPPONENT SECTION (Top/Left) */}
         <div className="stat-box">
-          <span className="name">{enemyPlayerName}</span>
+          <span className="name">{oppName}</span>
           <div className="mini-hp">
-            <div className="fill opponent" style={{width: `${(enemyHP/400)*100}%`}}/>
+            <div className="fill opponent" style={{width: `${(oppHP/400)*100}%`}}/>
           </div>
-          <span className="hp-val red-text">{enemyHP} HP</span>
+          <span className="hp-val red-text">{oppHP} HP</span>
         </div>
         
-        {/* YOU (BLUE) - Always Local */}
+        {/* LOCAL PLAYER SECTION (Top/Right) */}
         <div className="stat-box">
-          <span className="name">YOU ({localPlayerName})</span>
+          <span className="name">YOU ({localName})</span>
           <div className="mini-hp">
             <div className="fill local" style={{width: `${(localHP/400)*100}%`}}/>
           </div>
