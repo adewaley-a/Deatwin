@@ -17,6 +17,7 @@ export default function GamePage() {
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
+  const [countdown, setCountdown] = useState(3); // New Countdown State
 
   const W = 400, H = 700;
   const myPos = useRef({ x: 200, y: 600 });
@@ -55,18 +56,30 @@ export default function GamePage() {
       }
     });
 
+    // Countdown Ticker
+    const timer = setInterval(() => {
+      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    // Shooting logic - Blocks shooting if countdown > 0
     const fireInt = setInterval(() => {
-      if (!role || gameOver) return;
+      if (!role || gameOver || countdown > 0) return;
       const bData = { x: myPos.current.x, y: myPos.current.y - 25, v: -12 };
       socket.current.emit("fire", { ...bData, roomId });
       myBullets.current.push(bData);
     }, 333);
 
-    return () => { unsub(); socket.current.disconnect(); clearInterval(fireInt); };
-  }, [roomId, role, gameOver]);
+    return () => { 
+      unsub(); 
+      socket.current.disconnect(); 
+      clearInterval(fireInt); 
+      clearInterval(timer);
+    };
+  }, [roomId, role, gameOver, countdown]);
 
   const handleTouch = (e) => {
-    if (!role || gameOver) return;
+    // Blocks movement if countdown > 0
+    if (!role || gameOver || countdown > 0) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const t = e.touches[0];
     let nX = (t.clientX - rect.left) * (W / rect.width);
@@ -85,7 +98,6 @@ export default function GamePage() {
       ctx.strokeStyle = "#333";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      // LOCAL SHOOTER (Blue)
       ctx.fillStyle = "#00f2ff";
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
@@ -93,7 +105,6 @@ export default function GamePage() {
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      // ENEMY SHOOTER (Red)
       ctx.fillStyle = "#ff3e3e";
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
@@ -132,21 +143,15 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, gameOver, roomId]);
 
-  // --- DYNAMIC IDENTITY LOGIC ---
-  // If I am 'host', YOU is 'host' and Opponent is 'guest'.
-  // If I am 'guest', YOU is 'guest' and Opponent is 'host'.
   const isHost = role === 'host';
-  
   const localName = isHost ? playerNames.host : playerNames.guest;
   const oppName = isHost ? playerNames.guest : playerNames.host;
-  
   const localHP = isHost ? health.host : health.guest;
   const oppHP = isHost ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
-        {/* OPPONENT SECTION (Top/Left) */}
         <div className="stat-box">
           <span className="name">{oppName}</span>
           <div className="mini-hp">
@@ -155,7 +160,6 @@ export default function GamePage() {
           <span className="hp-val red-text">{oppHP} HP</span>
         </div>
         
-        {/* LOCAL PLAYER SECTION (Top/Right) */}
         <div className="stat-box">
           <span className="name">YOU ({localName})</span>
           <div className="mini-hp">
@@ -166,6 +170,14 @@ export default function GamePage() {
       </div>
       
       <canvas ref={canvasRef} width={W} height={H} />
+
+      {/* Countdown Overlay */}
+      {countdown > 0 && !gameOver && (
+        <div className="overlay countdown-bg">
+          <h1 className="countdown-text">{countdown}</h1>
+          <p className="countdown-sub">GET READY...</p>
+        </div>
+      )}
       
       {gameOver && (
         <div className="overlay">

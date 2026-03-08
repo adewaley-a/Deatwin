@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
+/* --- Main Layout --- */
 .game-container {
     width: 100vw;
     height: 100vh;
@@ -9,7 +10,7 @@
     flex-direction: column;
     align-items: center;
     overflow: hidden;
-    touch-action: none;
+    touch-action: none; /* Prevents screen wobbling on mobile */
     font-family: 'Orbitron', sans-serif;
 }
 
@@ -45,6 +46,7 @@
     font-weight: bold;
 }
 
+/* --- Color Identity --- */
 .blue-text { color: #00f2ff; text-shadow: 0 0 10px #00f2ff; }
 .red-text { color: #ff3e3e; text-shadow: 0 0 10px #ff3e3e; }
 
@@ -72,6 +74,7 @@
     box-shadow: 0 0 15px #ff3e3e;
 }
 
+/* --- Game Arena --- */
 canvas {
     flex-grow: 1;
     width: 100%;
@@ -80,6 +83,7 @@ canvas {
     display: block;
 }
 
+/* --- Overlay System (Countdown & Game Over) --- */
 .overlay {
     position: fixed;
     inset: 0;
@@ -91,9 +95,39 @@ canvas {
     z-index: 100;
 }
 
+/* Countdown Specific Styles */
+.countdown-bg {
+    background: rgba(0, 0, 0, 0.7) !important;
+    backdrop-filter: blur(8px);
+}
+
+.countdown-text {
+    font-size: 8rem;
+    color: #fff;
+    text-shadow: 0 0 20px #00f2ff, 0 0 40px #00f2ff;
+    margin: 0;
+    animation: pulse 1s infinite;
+}
+
+.countdown-sub {
+    color: #00f2ff;
+    letter-spacing: 8px;
+    font-weight: bold;
+    margin-top: -10px;
+    text-transform: uppercase;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Game Status Text */
 .win { color: #00f2ff; text-shadow: 0 0 30px #00f2ff; font-size: 3.5rem; }
 .lose { color: #ff3e3e; text-shadow: 0 0 30px #ff3e3e; font-size: 3.5rem; }
 
+/* --- UI Elements --- */
 button {
     background: transparent;
     border: 2px solid #fff;
