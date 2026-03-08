@@ -44,16 +44,27 @@ export default function GamePage() {
 
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
-    socket.current.on("assign_role", (data) => setRole(data.role));
+    
+    socket.current.on("assign_role", (data) => {
+      console.log("Assigned Role:", data.role);
+      setRole(data.role);
+    });
     
     socket.current.on("opp_move", (data) => { 
       enemyTarget.current = { x: data.x, y: data.y, rot: data.rot }; 
     });
 
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
+    
     socket.current.on("update_health", (h) => {
       setHealth(h);
-      if (role && (h.host <= 0 || h.guest <= 0)) setGameOver(h[role] <= 0 ? "lose" : "win");
+      if (role) {
+        if (h.host <= 0 || h.guest <= 0) {
+          const iAmHost = role === 'host';
+          const lost = iAmHost ? h.host <= 0 : h.guest <= 0;
+          setGameOver(lost ? "lose" : "win");
+        }
+      }
     });
 
     return () => { unsub(); socket.current.disconnect(); };
@@ -65,7 +76,7 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Shooting Logic
+  // Bullet Firing Logic
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -73,7 +84,7 @@ export default function GamePage() {
       const angle = myRot.current;
       const apexDist = 25; 
 
-      // My apex (Points Up)
+      // My apex always points "Up" (Negative Y)
       const tipX = myPos.current.x + Math.sin(angle) * apexDist;
       const tipY = myPos.current.y - Math.cos(angle) * apexDist;
 
@@ -82,7 +93,7 @@ export default function GamePage() {
 
       const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
       
-      // Emit mirrored: Rotation and Velocity are inverted for the other screen
+      // Mirroring for opponent: Flip X, Flip Y, Reverse Velocities, Reverse Rotation
       socket.current.emit("fire", { 
         roomId, 
         x: W - tipX, 
@@ -137,7 +148,7 @@ export default function GamePage() {
         ctx.save();
         ctx.translate(x, y);
 
-        // Control Deck (Only for local player)
+        // UI Controls (Only for Bottom Player)
         if (!isEnemy) {
           const deckY = 60;
           ctx.strokeStyle = color; ctx.lineWidth = 2;
@@ -150,18 +161,22 @@ export default function GamePage() {
           ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(knobX, deckY + 25, 8, 0, Math.PI * 2); ctx.fill();
         }
 
-        // --- FIXED MIRRORING ---
-        // If it's the enemy, we rotate the whole coordinate system by 180 deg (Math.PI)
-        if (isEnemy) ctx.rotate(Math.PI); 
-        
-        ctx.rotate(rot); // Apply the steered tilt
+        // Apply steering rotation
+        ctx.rotate(rot); 
         ctx.fillStyle = color; ctx.shadowBlur = 15; ctx.shadowColor = color;
         
         ctx.beginPath();
-        // Now "Up" (-25) is always the tip facing the opponent
-        ctx.moveTo(0, -25); 
-        ctx.lineTo(-20, 15);
-        ctx.lineTo(20, 15);
+        if (isEnemy) {
+          // ENEMY SHIP: Triangle points DOWN (Apex is at Y: +25)
+          ctx.moveTo(0, 25);   // The sharp point
+          ctx.lineTo(-20, -15); // Left base
+          ctx.lineTo(20, -15);  // Right base
+        } else {
+          // YOUR SHIP: Triangle points UP (Apex is at Y: -25)
+          ctx.moveTo(0, -25);  // The sharp point
+          ctx.lineTo(-20, 15); // Left base
+          ctx.lineTo(20, 15);  // Right base
+        }
         ctx.closePath();
         ctx.fill();
         ctx.restore();
@@ -179,10 +194,10 @@ export default function GamePage() {
       drawShooter(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
       drawShooter(enemyPos.current.x, enemyPos.current.y, enemyRot.current, "#ff3e3e", true);
 
+      // Bullet Processing
       [myBullets, enemyBullets].forEach((ref) => {
         ref.current.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
-          
           ctx.save();
           ctx.translate(b.x, b.y);
           ctx.fillStyle = (ref === myBullets) ? "#fffb00" : "#ff8c00";
@@ -193,7 +208,10 @@ export default function GamePage() {
           const target = (ref === myBullets) ? enemyPos.current : myPos.current;
           if (Math.hypot(b.x - target.x, b.y - target.y) < 25) {
             ref.current.splice(i, 1);
-            socket.current.emit("take_damage", { roomId, victimRole: (ref === myBullets) ? (role==='host'?'guest':'host') : role });
+            socket.current.emit("take_damage", { 
+              roomId, 
+              victimRole: (ref === myBullets) ? (role === 'host' ? 'guest' : 'host') : role 
+            });
           }
           if (b.y < -50 || b.y > H + 50 || b.x < -50 || b.x > W + 50) ref.current.splice(i, 1);
         });
@@ -204,23 +222,26 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, roomId]);
 
-  const localName = role === 'host' ? playerNames.host : playerNames.guest;
-  const oppName = role === 'host' ? playerNames.guest : playerNames.host;
-  const localHP = role === 'host' ? health.host : health.guest;
-  const oppHP = role === 'host' ? health.guest : health.host;
+  // FINAL FIX FOR NAMES: Check if I am the host
+  const iAmHost = role === 'host';
+  const myDisplayName = iAmHost ? playerNames.host : playerNames.guest;
+  const oppDisplayName = iAmHost ? playerNames.guest : playerNames.host;
+  
+  const myCurrentHP = iAmHost ? health.host : health.guest;
+  const oppCurrentHP = iAmHost ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
-          <span className="name">{oppName}</span>
-          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oppHP/400)*100}%`}}/></div>
-          <span className="hp-val red-text">{oppHP} HP</span>
+          <span className="name">{oppDisplayName}</span>
+          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oppCurrentHP/400)*100}%`}}/></div>
+          <span className="hp-val red-text">{oppCurrentHP} HP</span>
         </div>
         <div className="stat-box">
-          <span className="name">YOU ({localName})</span>
-          <div className="mini-hp"><div className="fill local" style={{width: `${(localHP/400)*100}%`}}/></div>
-          <span className="hp-val blue-text">{localHP} HP</span>
+          <span className="name">YOU ({myDisplayName})</span>
+          <div className="mini-hp"><div className="fill local" style={{width: `${(myCurrentHP/400)*100}%`}}/></div>
+          <span className="hp-val blue-text">{myCurrentHP} HP</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
