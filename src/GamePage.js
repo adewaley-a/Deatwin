@@ -17,7 +17,7 @@ export default function GamePage() {
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
-  const [countdown, setCountdown] = useState(3); // New Countdown State
+  const [countdown, setCountdown] = useState(3);
 
   const W = 400, H = 700;
   const myPos = useRef({ x: 200, y: 600 });
@@ -25,6 +25,7 @@ export default function GamePage() {
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
 
+  // 1. Sync & Role Assignment
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists()) {
@@ -38,17 +39,9 @@ export default function GamePage() {
 
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
-    
     socket.current.on("assign_role", (data) => setRole(data.role));
-    
-    socket.current.on("opp_move", (data) => { 
-      enemyPos.current = { x: data.x, y: data.y }; 
-    });
-
-    socket.current.on("incoming_bullet", (b) => {
-      enemyBullets.current.push(b);
-    });
-
+    socket.current.on("opp_move", (data) => { enemyPos.current = { x: data.x, y: data.y }; });
+    socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
     socket.current.on("update_health", (h) => {
       setHealth(h);
       if (role && (h.host <= 0 || h.guest <= 0)) {
@@ -56,40 +49,48 @@ export default function GamePage() {
       }
     });
 
-    // Countdown Ticker
-    const timer = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    return () => { unsub(); socket.current.disconnect(); };
+  }, [roomId, role]);
 
-    // Shooting logic - Blocks shooting if countdown > 0
+  // 2. Countdown Timer Logic
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  // 3. Shooting Logic - Only starts when countdown is 0
+  useEffect(() => {
+    if (countdown > 0 || gameOver || !role) return;
+
     const fireInt = setInterval(() => {
-      if (!role || gameOver || countdown > 0) return;
       const bData = { x: myPos.current.x, y: myPos.current.y - 25, v: -12 };
       socket.current.emit("fire", { ...bData, roomId });
       myBullets.current.push(bData);
     }, 333);
 
-    return () => { 
-      unsub(); 
-      socket.current.disconnect(); 
-      clearInterval(fireInt); 
-      clearInterval(timer);
-    };
-  }, [roomId, role, gameOver, countdown]);
+    return () => clearInterval(fireInt);
+  }, [countdown, gameOver, role, roomId]);
 
+  // 4. Movement Logic - Checked against countdown
   const handleTouch = (e) => {
-    // Blocks movement if countdown > 0
-    if (!role || gameOver || countdown > 0) return;
+    if (!role || gameOver || countdown > 0) return; 
+    
     const rect = canvasRef.current.getBoundingClientRect();
     const t = e.touches[0];
     let nX = (t.clientX - rect.left) * (W / rect.width);
     let nY = (t.clientY - rect.top) * (H / rect.height);
+    
     nY = Math.max(H / 2 + 50, Math.min(H - 40, nY));
     nX = Math.max(25, Math.min(W - 25, nX));
+    
     myPos.current = { x: nX, y: nY };
     socket.current.emit("move", { roomId, x: W - nX, y: H - nY });
   };
 
+  // 5. Render Loop
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
@@ -98,14 +99,14 @@ export default function GamePage() {
       ctx.strokeStyle = "#333";
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
-      ctx.fillStyle = "#00f2ff";
+      ctx.fillStyle = "#00f2ff"; // LOCAL (Always Bottom)
       ctx.beginPath();
       ctx.moveTo(myPos.current.x, myPos.current.y - 25);
       ctx.lineTo(myPos.current.x - 20, myPos.current.y + 15);
       ctx.lineTo(myPos.current.x + 20, myPos.current.y + 15);
       ctx.fill();
 
-      ctx.fillStyle = "#ff3e3e";
+      ctx.fillStyle = "#ff3e3e"; // ENEMY (Always Top)
       ctx.beginPath();
       ctx.moveTo(enemyPos.current.x, enemyPos.current.y + 25);
       ctx.lineTo(enemyPos.current.x - 20, enemyPos.current.y - 15);
@@ -141,8 +142,9 @@ export default function GamePage() {
     };
     render();
     return () => cancelAnimationFrame(frame);
-  }, [role, gameOver, roomId]);
+  }, [role, roomId]);
 
+  // --- THE IDENTITY MAPPING (Untouched and Correct) ---
   const isHost = role === 'host';
   const localName = isHost ? playerNames.host : playerNames.guest;
   const oppName = isHost ? playerNames.guest : playerNames.host;
@@ -152,6 +154,7 @@ export default function GamePage() {
   return (
     <div className="game-container" onTouchMove={handleTouch}>
       <div className="header-dashboard">
+        {/* OPPONENT STATS */}
         <div className="stat-box">
           <span className="name">{oppName}</span>
           <div className="mini-hp">
@@ -160,6 +163,7 @@ export default function GamePage() {
           <span className="hp-val red-text">{oppHP} HP</span>
         </div>
         
+        {/* YOUR STATS (Always refers to the person holding the phone) */}
         <div className="stat-box">
           <span className="name">YOU ({localName})</span>
           <div className="mini-hp">
@@ -171,8 +175,8 @@ export default function GamePage() {
       
       <canvas ref={canvasRef} width={W} height={H} />
 
-      {/* Countdown Overlay */}
-      {countdown > 0 && !gameOver && (
+      {/* Countdown UI */}
+      {countdown > 0 && (
         <div className="overlay countdown-bg">
           <h1 className="countdown-text">{countdown}</h1>
           <p className="countdown-sub">GET READY...</p>
