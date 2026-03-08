@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
-/* Main Container */
 .game-container {
     width: 100vw;
     height: 100vh;
@@ -13,7 +12,6 @@
     font-family: 'Orbitron', sans-serif;
 }
 
-/* Dashboard UI */
 .header-dashboard {
     width: 100%;
     padding: 15px 0;
@@ -37,7 +35,6 @@
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 1.5px;
-    text-align: center;
 }
 
 .hp-val {
@@ -49,7 +46,6 @@
 .blue-text { color: #00f2ff; text-shadow: 0 0 10px #00f2ff; }
 .red-text { color: #ff3e3e; text-shadow: 0 0 10px #ff3e3e; }
 
-/* HP Bar Styling */
 .mini-hp {
     width: 100%;
     height: 12px;
@@ -64,17 +60,9 @@
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.fill.local {
-    background: #00f2ff;
-    box-shadow: 0 0 15px #00f2ff;
-}
+.fill.local { background: #00f2ff; box-shadow: 0 0 15px #00f2ff; }
+.fill.opponent { background: #ff3e3e; box-shadow: 0 0 15px #ff3e3e; }
 
-.fill.opponent {
-    background: #ff3e3e;
-    box-shadow: 0 0 15px #ff3e3e;
-}
-
-/* Game Canvas */
 canvas {
     flex-grow: 1;
     width: 100%;
@@ -83,7 +71,6 @@ canvas {
     display: block;
 }
 
-/* Overlays (Win/Loss & Countdown) */
 .overlay {
     position: fixed;
     inset: 0;
@@ -95,53 +82,31 @@ canvas {
     z-index: 100;
 }
 
-/* Countdown Visuals */
 .countdown-bg {
-    background: rgba(0, 0, 0, 0.6) !important;
+    background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(8px);
-    pointer-events: none; /* Crucial: ensures touch works the instant timer hits 0 */
+    pointer-events: none;
 }
 
 .countdown-text {
-    font-size: 9rem;
+    font-size: 8rem;
     color: #fff;
     text-shadow: 0 0 20px #00f2ff, 0 0 40px #00f2ff;
-    margin: 0;
     animation: pulse 1s infinite;
 }
 
-.countdown-sub {
-    color: #00f2ff;
-    letter-spacing: 10px;
-    font-weight: bold;
-    margin-top: -10px;
-}
-
 @keyframes pulse {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.15); opacity: 0.7; }
-    100% { transform: scale(1); opacity: 1; }
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
 }
 
-/* Game Over Text */
-.win { color: #00f2ff; text-shadow: 0 0 30px #00f2ff; font-size: 3.5rem; }
-.lose { color: #ff3e3e; text-shadow: 0 0 30px #ff3e3e; font-size: 3.5rem; }
-
-/* Exit Button */
 button {
     background: transparent;
     border: 2px solid #fff;
     color: #fff;
     padding: 12px 40px;
     font-family: 'Orbitron';
-    font-weight: bold;
     cursor: pointer;
     margin-top: 30px;
-    letter-spacing: 2px;
-    transition: 0.3s ease;
-}
-
-button:hover {
-    background: #fff;
-    color: #000;
 }
