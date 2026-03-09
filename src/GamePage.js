@@ -180,7 +180,7 @@ export default function GamePage() {
 
   // FIXED NAME LOGIC:
   const iAmHost = role === 'host';
-  const myName = iAmHost ? playerNames.guest : playerNames.host;
+  const myName = iAmHost ? playerNames.host : playerNames.guest;
   const oppName = iAmHost ? playerNames.guest : playerNames.host;
   
   const myHP = iAmHost ? health.host : health.guest;
