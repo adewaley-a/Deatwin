@@ -6,7 +6,6 @@ import { db } from "./firebase";
 import "./GamePage.css";
 
 const SOCKET_URL = "https://deatgame-server.onrender.com"; 
-
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
 export default function GamePage() {
@@ -24,8 +23,7 @@ export default function GamePage() {
   const W = 400, H = 700;
   const myPos = useRef({ x: 200, y: 600 });
   const myRot = useRef(0); 
-  const isDraggingShip = useRef(false);
-  const isSteering = useRef(false);
+  const activeTouchType = useRef(null); // 'steering' or 'dragging'
 
   const enemyPos = useRef({ x: 200, y: 100 });
   const enemyRot = useRef(0);
@@ -46,7 +44,6 @@ export default function GamePage() {
     socket.current.emit("join_game", { roomId });
     
     socket.current.on("assign_role", (data) => {
-      console.log("Assigned Role:", data.role);
       setRole(data.role);
     });
     
@@ -58,17 +55,24 @@ export default function GamePage() {
     
     socket.current.on("update_health", (h) => {
       setHealth(h);
-      if (role) {
-        if (h.host <= 0 || h.guest <= 0) {
-          const iAmHost = role === 'host';
-          const lost = iAmHost ? h.host <= 0 : h.guest <= 0;
-          setGameOver(lost ? "lose" : "win");
-        }
+      if (h.host <= 0 || h.guest <= 0) {
+        setGameOver((prev) => {
+            if (prev) return prev;
+            // Immediate check using local role state
+            const iAmHost = socket.current.role === 'host'; 
+            const lost = iAmHost ? h.host <= 0 : h.guest <= 0;
+            return lost ? "lose" : "win";
+        });
       }
     });
 
     return () => { unsub(); socket.current.disconnect(); };
-  }, [roomId, role]);
+  }, [roomId]);
+
+  // Sync role to socket ref for immediate access in listeners
+  useEffect(() => {
+    if (socket.current) socket.current.role = role;
+  }, [role]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -76,31 +80,20 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Bullet Firing Logic
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
       const speed = 14;
       const angle = myRot.current;
       const apexDist = 25; 
-
-      // My apex always points "Up" (Negative Y)
       const tipX = myPos.current.x + Math.sin(angle) * apexDist;
       const tipY = myPos.current.y - Math.cos(angle) * apexDist;
-
       const vx = Math.sin(angle) * speed;
       const vy = -Math.cos(angle) * speed;
 
       const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
-      
-      // Mirroring for opponent: Flip X, Flip Y, Reverse Velocities, Reverse Rotation
       socket.current.emit("fire", { 
-        roomId, 
-        x: W - tipX, 
-        y: H - tipY, 
-        vx: -vx, 
-        vy: -vy, 
-        rot: -angle 
+        roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy, rot: -angle 
       });
       myBullets.current.push(bData);
     }, 250);
@@ -111,33 +104,34 @@ export default function GamePage() {
     if (!role || gameOver || countdown > 0) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const t = e.touches[0];
-    const touchX = (t.clientX - rect.left) * (W / rect.width);
-    const touchY = (t.clientY - rect.top) * (H / rect.height);
+    if (!t && e.type !== "touchend") return;
 
     if (e.type === "touchstart") {
-      const distToSlider = Math.hypot(touchX - myPos.current.x, touchY - (myPos.current.y + 75));
+      const touchX = (t.clientX - rect.left) * (W / rect.width);
+      const touchY = (t.clientY - rect.top) * (H / rect.height);
+      
+      const distToSlider = Math.hypot(touchX - myPos.current.x, touchY - (myPos.current.y + 85));
       const distToShip = Math.hypot(touchX - myPos.current.x, touchY - myPos.current.y);
-      if (distToSlider < 60) { isSteering.current = true; }
-      else if (distToShip < 80) { isDraggingShip.current = true; }
+      
+      if (distToSlider < 50) activeTouchType.current = 'steering';
+      else if (distToShip < 60) activeTouchType.current = 'dragging';
     }
 
-    if (e.type === "touchmove") {
-      if (isSteering.current) {
-        const sensitivity = 0.02; 
+    if (e.type === "touchmove" && activeTouchType.current) {
+      const touchX = (t.clientX - rect.left) * (W / rect.width);
+      const touchY = (t.clientY - rect.top) * (H / rect.height);
+
+      if (activeTouchType.current === 'steering') {
         const deltaX = touchX - myPos.current.x;
-        myRot.current = Math.max(-1.22, Math.min(1.22, deltaX * sensitivity));
-      } else if (isDraggingShip.current) {
+        myRot.current = Math.max(-1.22, Math.min(1.22, deltaX * 0.02));
+      } else {
         myPos.current.x = Math.max(25, Math.min(W - 25, touchX));
         myPos.current.y = Math.max(H / 2 + 50, Math.min(H - 120, touchY));
       }
+      socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current });
     }
 
-    if (e.type === "touchend") {
-      isSteering.current = false;
-      isDraggingShip.current = false;
-    }
-
-    socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current });
+    if (e.type === "touchend") activeTouchType.current = null;
   };
 
   useEffect(() => {
@@ -147,46 +141,27 @@ export default function GamePage() {
     const drawShooter = (x, y, rot, color, isEnemy) => {
         ctx.save();
         ctx.translate(x, y);
-
-        // UI Controls (Only for Bottom Player)
         if (!isEnemy) {
-          const deckY = 60;
-          ctx.strokeStyle = color; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.arc(0, deckY, 15, 0, Math.PI * 2); ctx.stroke();
-          ctx.save(); ctx.translate(0, deckY); ctx.rotate(rot * 1.5);
-          ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, -15); ctx.lineTo(0, 15); ctx.stroke();
-          ctx.restore();
-          ctx.beginPath(); ctx.moveTo(-40, deckY + 25); ctx.lineTo(40, deckY + 25); ctx.stroke();
+          const deckY = 85;
+          ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(-40, deckY); ctx.lineTo(40, deckY); ctx.stroke();
           const knobX = (rot / 1.22) * 40;
-          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(knobX, deckY + 25, 8, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = color; ctx.beginPath(); ctx.arc(knobX, deckY, 10, 0, Math.PI * 2); ctx.fill();
         }
-
-        // Apply steering rotation
         ctx.rotate(rot); 
         ctx.fillStyle = color; ctx.shadowBlur = 15; ctx.shadowColor = color;
-        
         ctx.beginPath();
         if (isEnemy) {
-          // ENEMY SHIP: Triangle points DOWN (Apex is at Y: +25)
-          ctx.moveTo(0, 25);   // The sharp point
-          ctx.lineTo(-20, -15); // Left base
-          ctx.lineTo(20, -15);  // Right base
+          ctx.moveTo(0, 25); ctx.lineTo(-20, -15); ctx.lineTo(20, -15);
         } else {
-          // YOUR SHIP: Triangle points UP (Apex is at Y: -25)
-          ctx.moveTo(0, -25);  // The sharp point
-          ctx.lineTo(-20, 15); // Left base
-          ctx.lineTo(20, 15);  // Right base
+          ctx.moveTo(0, -25); ctx.lineTo(-20, 15); ctx.lineTo(20, 15);
         }
-        ctx.closePath();
-        ctx.fill();
+        ctx.closePath(); ctx.fill();
         ctx.restore();
     };
 
     const render = () => {
       ctx.clearRect(0, 0, W, H);
-      ctx.strokeStyle = "#333"; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
-
       enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.15);
       enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.15);
       enemyRot.current = lerp(enemyRot.current, enemyTarget.current.rot, 0.15);
@@ -194,26 +169,20 @@ export default function GamePage() {
       drawShooter(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
       drawShooter(enemyPos.current.x, enemyPos.current.y, enemyRot.current, "#ff3e3e", true);
 
-      // Bullet Processing
       [myBullets, enemyBullets].forEach((ref) => {
         ref.current.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
-          ctx.save();
-          ctx.translate(b.x, b.y);
           ctx.fillStyle = (ref === myBullets) ? "#fffb00" : "#ff8c00";
-          ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
-          ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
+          ctx.beginPath(); ctx.arc(b.x, b.y, 6, 0, Math.PI * 2); ctx.fill();
 
           const target = (ref === myBullets) ? enemyPos.current : myPos.current;
           if (Math.hypot(b.x - target.x, b.y - target.y) < 25) {
             ref.current.splice(i, 1);
-            socket.current.emit("take_damage", { 
-              roomId, 
-              victimRole: (ref === myBullets) ? (role === 'host' ? 'guest' : 'host') : role 
-            });
+            if (ref === enemyBullets) {
+                socket.current.emit("take_damage", { roomId, victimRole: role });
+            }
           }
-          if (b.y < -50 || b.y > H + 50 || b.x < -50 || b.x > W + 50) ref.current.splice(i, 1);
+          if (b.y < -50 || b.y > H + 50) ref.current.splice(i, 1);
         });
       });
       frame = requestAnimationFrame(render);
@@ -222,11 +191,9 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, roomId]);
 
-  // FINAL FIX FOR NAMES: Check if I am the host
   const iAmHost = role === 'host';
   const myDisplayName = iAmHost ? playerNames.host : playerNames.guest;
   const oppDisplayName = iAmHost ? playerNames.guest : playerNames.host;
-  
   const myCurrentHP = iAmHost ? health.host : health.guest;
   const oppCurrentHP = iAmHost ? health.guest : health.host;
 
