@@ -43,10 +43,13 @@ export default function GamePage() {
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
     
-    socket.current.on("assign_role", (data) => setRole(data.role));
+    socket.current.on("assign_role", (data) => {
+      setRole(data.role);
+      socket.current.role = data.role;
+    });
     
     socket.current.on("opp_move", (data) => { 
-      // Mirroring: Incoming X is already flipped by the sender, so we use it directly
+      // Receives mirrored coordinates and mirrored rotation
       enemyTarget.current = { x: data.x, y: data.y, rot: data.rot }; 
     });
 
@@ -64,15 +67,13 @@ export default function GamePage() {
     return () => { unsub(); socket.current.disconnect(); };
   }, [roomId]);
 
-  useEffect(() => { if (socket.current) socket.current.role = role; }, [role]);
-
   useEffect(() => {
     if (countdown <= 0) return;
     const timer = setInterval(() => setCountdown(prev => prev - 1), 1000);
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Bullet Firing with X-Mirroring
+  // Bullet Firing Logic with Full Mirroring
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -85,7 +86,7 @@ export default function GamePage() {
 
       const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
       
-      // MIRROR: Flip X position and Flip X velocity for the opponent
+      // Mirror X, Y, VelX, VelY, AND Rotation for the opponent
       socket.current.emit("fire", { 
         roomId, 
         x: W - tipX, 
@@ -122,8 +123,13 @@ export default function GamePage() {
         myPos.current.x = Math.max(25, Math.min(W - 25, touchX));
         myPos.current.y = Math.max(H / 2 + 50, Math.min(H - 120, touchY));
       }
-      // MIRROR: Send flipped X to opponent
-      socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current });
+      // MIRROR: Send flipped X AND flipped rotation
+      socket.current.emit("move", { 
+        roomId, 
+        x: W - myPos.current.x, 
+        y: H - myPos.current.y, 
+        rot: -myRot.current 
+      });
     }
     if (e.type === "touchend") activeTouchType.current = null;
   };
@@ -178,11 +184,9 @@ export default function GamePage() {
     return () => cancelAnimationFrame(frame);
   }, [role, roomId]);
 
-  // FIXED NAME LOGIC:
   const iAmHost = role === 'host';
   const myName = iAmHost ? playerNames.host : playerNames.guest;
   const oppName = iAmHost ? playerNames.guest : playerNames.host;
-  
   const myHP = iAmHost ? health.host : health.guest;
   const oppHP = iAmHost ? health.guest : health.host;
 
