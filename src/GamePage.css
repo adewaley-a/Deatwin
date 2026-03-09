@@ -6,7 +6,7 @@
     overflow: hidden; touch-action: none; font-family: 'Orbitron', sans-serif;
 }
 
-.loading { color: #00f2ff; height: 100vh; display: flex; align-items: center; font-family: 'Orbitron'; letter-spacing: 4px; }
+.loading { color: #00f2ff; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Orbitron'; letter-spacing: 4px; background: #000; width: 100%; }
 
 .header-dashboard {
     width: 100%; padding: 15px 0; background: #050505;

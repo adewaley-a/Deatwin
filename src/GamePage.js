@@ -14,7 +14,7 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState(null); // Start null to prevent premature render
+  const [playerNames, setPlayerNames] = useState(null);
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
@@ -30,19 +30,19 @@ export default function GamePage() {
   const isDraggingShip = useRef(false);
   const isSteering = useRef(false);
 
-  // Identity logic - Memoized to prevent swapping during lag
+  // Identity logic - ensures "YOU" matches the assigned role from Socket
   const identity = useMemo(() => {
     if (!role || !playerNames) return null;
+    const isHost = role === 'host';
     return {
-      me: role === 'host' ? playerNames.host : playerNames.guest,
-      opp: role === 'host' ? playerNames.guest : playerNames.host,
-      myHP: role === 'host' ? health.host : health.guest,
-      oppHP: role === 'host' ? health.guest : health.host
+      me: isHost ? playerNames.host : playerNames.guest,
+      opp: isHost ? playerNames.guest : playerNames.host,
+      myHP: isHost ? health.host : health.guest,
+      oppHP: isHost ? health.guest : health.host
     };
   }, [role, playerNames, health]);
 
   useEffect(() => {
-    // 1. Fetch Names First
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
@@ -50,7 +50,6 @@ export default function GamePage() {
       }
     });
 
-    // 2. Connect Socket
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
     
@@ -59,10 +58,12 @@ export default function GamePage() {
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
     socket.current.on("update_health", (h) => setHealth(h));
 
-    return () => { unsub(); socket.current.disconnect(); };
+    return () => { 
+      unsub(); 
+      if (socket.current) socket.current.disconnect(); 
+    };
   }, [roomId]);
 
-  // Handle Game Over
   useEffect(() => {
     if (role && (health.host <= 0 || health.guest <= 0)) {
       const lost = role === 'host' ? health.host <= 0 : health.guest <= 0;
@@ -76,9 +77,9 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Firing Logic
+  // FIXED: Added roomId and role to dependencies to satisfy ESLint
   useEffect(() => {
-    if (countdown > 0 || gameOver || !role) return;
+    if (countdown > 0 || gameOver || !role || !roomId) return;
     const fireInt = setInterval(() => {
       const angle = myRot.current;
       const tipX = myPos.current.x + Math.sin(angle) * 25;
@@ -87,7 +88,9 @@ export default function GamePage() {
       const vy = -Math.cos(angle) * 14;
       const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
 
-      socket.current.emit("fire", { roomId, x: W-tipX, y: H-tipY, vx: -vx, vy: -vy, rot: -angle });
+      if (socket.current) {
+        socket.current.emit("fire", { roomId, x: W-tipX, y: H-tipY, vx: -vx, vy: -vy, rot: -angle });
+      }
       myBullets.current.push(bData);
     }, 250);
     return () => clearInterval(fireInt);
@@ -111,20 +114,22 @@ export default function GamePage() {
         myPos.current.x = Math.max(25, Math.min(W - 25, touchX));
         myPos.current.y = Math.max(H / 2 + 50, Math.min(H - 120, touchY));
       }
-      socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current });
+      if (socket.current) {
+        socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current });
+      }
     }
     if (e.type === "touchend") { isSteering.current = false; isDraggingShip.current = false; }
   };
 
   useEffect(() => {
-    if (!role || !playerNames) return; // THE GATE: Don't start rendering until ready
+    if (!role || !playerNames) return;
     const ctx = canvasRef.current.getContext("2d");
     let frame;
 
     const drawShooter = (x, y, rot, color, isEnemy) => {
       ctx.save();
       ctx.translate(x, y);
-      if (!isEnemy) { // UI Controls for bottom player
+      if (!isEnemy) {
         ctx.strokeStyle = color; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(0, 60, 15, 0, Math.PI * 2); ctx.stroke();
         ctx.save(); ctx.translate(0, 60); ctx.rotate(rot * 1.5);
@@ -134,8 +139,11 @@ export default function GamePage() {
       ctx.rotate(rot);
       ctx.fillStyle = color; ctx.shadowBlur = 15; ctx.shadowColor = color;
       ctx.beginPath();
-      if (isEnemy) { ctx.moveTo(0, 25); ctx.lineTo(-20, -15); ctx.lineTo(20, -15); } 
-      else { ctx.moveTo(0, -25); ctx.lineTo(-20, 15); ctx.lineTo(20, 15); }
+      if (isEnemy) { 
+        ctx.moveTo(0, 25); ctx.lineTo(-20, -15); ctx.lineTo(20, -15); 
+      } else { 
+        ctx.moveTo(0, -25); ctx.lineTo(-20, 15); ctx.lineTo(20, 15); 
+      }
       ctx.closePath(); ctx.fill();
       ctx.restore();
     };
@@ -161,7 +169,9 @@ export default function GamePage() {
           const target = (ref === myBullets) ? enemyPos.current : myPos.current;
           if (Math.hypot(b.x - target.x, b.y - target.y) < 25) {
             ref.current.splice(i, 1);
-            socket.current.emit("take_damage", { roomId, victimRole: (ref === myBullets) ? (role==='host'?'guest':'host') : role });
+            if (socket.current) {
+              socket.current.emit("take_damage", { roomId, victimRole: (ref === myBullets) ? (role==='host'?'guest':'host') : role });
+            }
           }
           if (b.y < -50 || b.y > H + 50) ref.current.splice(i, 1);
         });
@@ -170,9 +180,9 @@ export default function GamePage() {
     };
     render();
     return () => cancelAnimationFrame(frame);
-  }, [role, playerNames]);
+  }, [role, playerNames, roomId]); // Added roomId here as well
 
-  if (!identity) return <div className="loading">Initializing Battle...</div>;
+  if (!identity) return <div className="loading">CONNECTING TO ROOM...</div>;
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
