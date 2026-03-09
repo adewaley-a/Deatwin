@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -6,6 +6,7 @@ import { db } from "./firebase";
 import "./GamePage.css";
 
 const SOCKET_URL = "https://deatgame-server.onrender.com"; 
+
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
 export default function GamePage() {
@@ -14,7 +15,7 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  const [playerNames, setPlayerNames] = useState(null);
+  const [playerNames, setPlayerNames] = useState({ host: "Player 1", guest: "Player 2" });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [gameOver, setGameOver] = useState(null);
@@ -23,24 +24,15 @@ export default function GamePage() {
   const W = 400, H = 700;
   const myPos = useRef({ x: 200, y: 600 });
   const myRot = useRef(0); 
-  const enemyPos = useRef({ x: 200, y: 100 });
-  const enemyTarget = useRef({ x: 200, y: 100, rot: 0 }); 
-  const myBullets = useRef([]);
-  const enemyBullets = useRef([]);
   const isDraggingShip = useRef(false);
   const isSteering = useRef(false);
 
-  // Identity logic - ensures "YOU" matches the assigned role from Socket
-  const identity = useMemo(() => {
-    if (!role || !playerNames) return null;
-    const isHost = role === 'host';
-    return {
-      me: isHost ? playerNames.host : playerNames.guest,
-      opp: isHost ? playerNames.guest : playerNames.host,
-      myHP: isHost ? health.host : health.guest,
-      oppHP: isHost ? health.guest : health.host
-    };
-  }, [role, playerNames, health]);
+  const enemyPos = useRef({ x: 200, y: 100 });
+  const enemyRot = useRef(0);
+  const enemyTarget = useRef({ x: 200, y: 100, rot: 0 }); 
+  
+  const myBullets = useRef([]);
+  const enemyBullets = useRef([]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
@@ -53,23 +45,30 @@ export default function GamePage() {
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
     
-    socket.current.on("assign_role", (data) => setRole(data.role));
-    socket.current.on("opp_move", (data) => { enemyTarget.current = data; });
+    socket.current.on("assign_role", (data) => {
+      console.log("Assigned Role:", data.role);
+      setRole(data.role);
+    });
+    
+    socket.current.on("opp_move", (data) => { 
+      enemyTarget.current = { x: data.x, y: data.y, rot: data.rot }; 
+    });
+
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
-    socket.current.on("update_health", (h) => setHealth(h));
+    
+    socket.current.on("update_health", (h) => {
+      setHealth(h);
+      if (role) {
+        if (h.host <= 0 || h.guest <= 0) {
+          const iAmHost = role === 'host';
+          const lost = iAmHost ? h.host <= 0 : h.guest <= 0;
+          setGameOver(lost ? "lose" : "win");
+        }
+      }
+    });
 
-    return () => { 
-      unsub(); 
-      if (socket.current) socket.current.disconnect(); 
-    };
-  }, [roomId]);
-
-  useEffect(() => {
-    if (role && (health.host <= 0 || health.guest <= 0)) {
-      const lost = role === 'host' ? health.host <= 0 : health.guest <= 0;
-      setGameOver(lost ? "lose" : "win");
-    }
-  }, [health, role]);
+    return () => { unsub(); socket.current.disconnect(); };
+  }, [roomId, role]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -77,20 +76,32 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // FIXED: Added roomId and role to dependencies to satisfy ESLint
+  // Bullet Firing Logic
   useEffect(() => {
-    if (countdown > 0 || gameOver || !role || !roomId) return;
+    if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
+      const speed = 14;
       const angle = myRot.current;
-      const tipX = myPos.current.x + Math.sin(angle) * 25;
-      const tipY = myPos.current.y - Math.cos(angle) * 25;
-      const vx = Math.sin(angle) * 14;
-      const vy = -Math.cos(angle) * 14;
-      const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
+      const apexDist = 25; 
 
-      if (socket.current) {
-        socket.current.emit("fire", { roomId, x: W-tipX, y: H-tipY, vx: -vx, vy: -vy, rot: -angle });
-      }
+      // My apex always points "Up" (Negative Y)
+      const tipX = myPos.current.x + Math.sin(angle) * apexDist;
+      const tipY = myPos.current.y - Math.cos(angle) * apexDist;
+
+      const vx = Math.sin(angle) * speed;
+      const vy = -Math.cos(angle) * speed;
+
+      const bData = { x: tipX, y: tipY, vx, vy, rot: angle };
+      
+      // Mirroring for opponent: Flip X, Flip Y, Reverse Velocities, Reverse Rotation
+      socket.current.emit("fire", { 
+        roomId, 
+        x: W - tipX, 
+        y: H - tipY, 
+        vx: -vx, 
+        vy: -vy, 
+        rot: -angle 
+      });
       myBullets.current.push(bData);
     }, 250);
     return () => clearInterval(fireInt);
@@ -104,98 +115,133 @@ export default function GamePage() {
     const touchY = (t.clientY - rect.top) * (H / rect.height);
 
     if (e.type === "touchstart") {
-      if (Math.hypot(touchX - myPos.current.x, touchY - (myPos.current.y + 75)) < 60) isSteering.current = true;
-      else if (Math.hypot(touchX - myPos.current.x, touchY - myPos.current.y) < 80) isDraggingShip.current = true;
+      const distToSlider = Math.hypot(touchX - myPos.current.x, touchY - (myPos.current.y + 75));
+      const distToShip = Math.hypot(touchX - myPos.current.x, touchY - myPos.current.y);
+      if (distToSlider < 60) { isSteering.current = true; }
+      else if (distToShip < 80) { isDraggingShip.current = true; }
     }
+
     if (e.type === "touchmove") {
       if (isSteering.current) {
-        myRot.current = Math.max(-1.22, Math.min(1.22, (touchX - myPos.current.x) * 0.02));
+        const sensitivity = 0.02; 
+        const deltaX = touchX - myPos.current.x;
+        myRot.current = Math.max(-1.22, Math.min(1.22, deltaX * sensitivity));
       } else if (isDraggingShip.current) {
         myPos.current.x = Math.max(25, Math.min(W - 25, touchX));
         myPos.current.y = Math.max(H / 2 + 50, Math.min(H - 120, touchY));
       }
-      if (socket.current) {
-        socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current });
-      }
     }
-    if (e.type === "touchend") { isSteering.current = false; isDraggingShip.current = false; }
+
+    if (e.type === "touchend") {
+      isSteering.current = false;
+      isDraggingShip.current = false;
+    }
+
+    socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current });
   };
 
   useEffect(() => {
-    if (!role || !playerNames) return;
     const ctx = canvasRef.current.getContext("2d");
     let frame;
 
     const drawShooter = (x, y, rot, color, isEnemy) => {
-      ctx.save();
-      ctx.translate(x, y);
-      if (!isEnemy) {
-        ctx.strokeStyle = color; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 60, 15, 0, Math.PI * 2); ctx.stroke();
-        ctx.save(); ctx.translate(0, 60); ctx.rotate(rot * 1.5);
-        ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, -15); ctx.lineTo(0, 15); ctx.stroke();
+        ctx.save();
+        ctx.translate(x, y);
+
+        // UI Controls (Only for Bottom Player)
+        if (!isEnemy) {
+          const deckY = 60;
+          ctx.strokeStyle = color; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(0, deckY, 15, 0, Math.PI * 2); ctx.stroke();
+          ctx.save(); ctx.translate(0, deckY); ctx.rotate(rot * 1.5);
+          ctx.beginPath(); ctx.moveTo(-15, 0); ctx.lineTo(15, 0); ctx.moveTo(0, -15); ctx.lineTo(0, 15); ctx.stroke();
+          ctx.restore();
+          ctx.beginPath(); ctx.moveTo(-40, deckY + 25); ctx.lineTo(40, deckY + 25); ctx.stroke();
+          const knobX = (rot / 1.22) * 40;
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(knobX, deckY + 25, 8, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Apply steering rotation
+        ctx.rotate(rot); 
+        ctx.fillStyle = color; ctx.shadowBlur = 15; ctx.shadowColor = color;
+        
+        ctx.beginPath();
+        if (isEnemy) {
+          // ENEMY SHIP: Triangle points DOWN (Apex is at Y: +25)
+          ctx.moveTo(0, 25);   // The sharp point
+          ctx.lineTo(-20, -15); // Left base
+          ctx.lineTo(20, -15);  // Right base
+        } else {
+          // YOUR SHIP: Triangle points UP (Apex is at Y: -25)
+          ctx.moveTo(0, -25);  // The sharp point
+          ctx.lineTo(-20, 15); // Left base
+          ctx.lineTo(20, 15);  // Right base
+        }
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
-      }
-      ctx.rotate(rot);
-      ctx.fillStyle = color; ctx.shadowBlur = 15; ctx.shadowColor = color;
-      ctx.beginPath();
-      if (isEnemy) { 
-        ctx.moveTo(0, 25); ctx.lineTo(-20, -15); ctx.lineTo(20, -15); 
-      } else { 
-        ctx.moveTo(0, -25); ctx.lineTo(-20, 15); ctx.lineTo(20, 15); 
-      }
-      ctx.closePath(); ctx.fill();
-      ctx.restore();
     };
 
     const render = () => {
       ctx.clearRect(0, 0, W, H);
-      ctx.strokeStyle = "#222"; ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+      ctx.strokeStyle = "#333"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
 
       enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.15);
       enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.15);
-      const eRot = lerp(enemyPos.current.rot || 0, enemyTarget.current.rot, 0.15);
+      enemyRot.current = lerp(enemyRot.current, enemyTarget.current.rot, 0.15);
 
       drawShooter(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
-      drawShooter(enemyPos.current.x, enemyPos.current.y, eRot, "#ff3e3e", true);
+      drawShooter(enemyPos.current.x, enemyPos.current.y, enemyRot.current, "#ff3e3e", true);
 
+      // Bullet Processing
       [myBullets, enemyBullets].forEach((ref) => {
         ref.current.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
-          ctx.save(); ctx.translate(b.x, b.y);
+          ctx.save();
+          ctx.translate(b.x, b.y);
           ctx.fillStyle = (ref === myBullets) ? "#fffb00" : "#ff8c00";
-          ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+          ctx.shadowBlur = 10; ctx.shadowColor = ctx.fillStyle;
+          ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
 
           const target = (ref === myBullets) ? enemyPos.current : myPos.current;
           if (Math.hypot(b.x - target.x, b.y - target.y) < 25) {
             ref.current.splice(i, 1);
-            if (socket.current) {
-              socket.current.emit("take_damage", { roomId, victimRole: (ref === myBullets) ? (role==='host'?'guest':'host') : role });
-            }
+            socket.current.emit("take_damage", { 
+              roomId, 
+              victimRole: (ref === myBullets) ? (role === 'host' ? 'guest' : 'host') : role 
+            });
           }
-          if (b.y < -50 || b.y > H + 50) ref.current.splice(i, 1);
+          if (b.y < -50 || b.y > H + 50 || b.x < -50 || b.x > W + 50) ref.current.splice(i, 1);
         });
       });
       frame = requestAnimationFrame(render);
     };
     render();
     return () => cancelAnimationFrame(frame);
-  }, [role, playerNames, roomId]); // Added roomId here as well
+  }, [role, roomId]);
 
-  if (!identity) return <div className="loading">CONNECTING TO ROOM...</div>;
+  // FINAL FIX FOR NAMES: Check if I am the host
+  const iAmHost = role === 'host';
+  const myDisplayName = iAmHost ? playerNames.host : playerNames.guest;
+  const oppDisplayName = iAmHost ? playerNames.guest : playerNames.host;
+  
+  const myCurrentHP = iAmHost ? health.host : health.guest;
+  const oppCurrentHP = iAmHost ? health.guest : health.host;
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
-          <span className="name">{identity.opp}</span>
-          <div className="mini-hp"><div className="fill opponent" style={{width: `${(identity.oppHP/400)*100}%`}}/></div>
-          <span className="hp-val red-text">{identity.oppHP} HP</span>
+          <span className="name">{oppDisplayName}</span>
+          <div className="mini-hp"><div className="fill opponent" style={{width: `${(oppCurrentHP/400)*100}%`}}/></div>
+          <span className="hp-val red-text">{oppCurrentHP} HP</span>
         </div>
         <div className="stat-box">
-          <span className="name">YOU ({identity.me})</span>
-          <div className="mini-hp"><div className="fill local" style={{width: `${(identity.myHP/400)*100}%`}}/></div>
-          <span className="hp-val blue-text">{identity.myHP} HP</span>
+          <span className="name">YOU ({myDisplayName})</span>
+          <div className="mini-hp"><div className="fill local" style={{width: `${(myCurrentHP/400)*100}%`}}/></div>
+          <span className="hp-val blue-text">{myCurrentHP} HP</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
