@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-import { doc, onSnapshot } from "firebase/firestore"; // Integrated Firebase
+import { doc, onSnapshot } from "firebase/firestore"; 
 import { db } from "./firebase"; 
 import "./GamePage.css";
 
@@ -14,7 +14,6 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  // State for dynamic names
   const [names, setNames] = useState({ me: "...", them: "..." });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
@@ -24,6 +23,7 @@ export default function GamePage() {
   const [countdown, setCountdown] = useState(3);
   const [healAnim, setHealAnim] = useState({ show: false, target: null });
   const [isCharging, setIsCharging] = useState(false);
+  const [chargeProgress, setChargeProgress] = useState(0);
   const [grenadeCount, setGrenadeCount] = useState(2);
 
   const W = 400, H = 700;
@@ -46,9 +46,9 @@ export default function GamePage() {
 
   const lastTap = useRef(0);
   const chargeTimer = useRef(null);
+  const chargeInterval = useRef(null);
 
   useEffect(() => {
-    // 1. Listen to Firebase for usernames
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
       if (snap.exists() && role) {
         const d = snap.data();
@@ -95,6 +95,7 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
+  // Bullet firing at 180ms
   useEffect(() => {
     if (countdown > 0 || gameOver || !role || isCharging) return;
     const fireInt = setInterval(() => {
@@ -103,7 +104,7 @@ export default function GamePage() {
       const tipY = myPos.current.y - Math.cos(angle) * 40;
       const vx = Math.sin(angle) * 18;
       const vy = -Math.cos(angle) * 18;
-      const b = { x: tipX, y: tipY, vx, vy, muzzle: 5 };
+      const b = { x: tipX, y: tipY, vx, vy };
       socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy, rot: -angle });
       myBullets.current.push(b);
     }, 180); 
@@ -132,7 +133,14 @@ export default function GamePage() {
     };
     socket.current.emit("throw_grenade", { roomId, x: W - g.x, y: H - g.y, vx: -g.vx, vy: -g.vy, maxDist: range });
     grenades.current.push(g);
+    cancelCharge();
+  };
+
+  const cancelCharge = () => {
     setIsCharging(false);
+    setChargeProgress(0);
+    if (chargeTimer.current) clearTimeout(chargeTimer.current);
+    if (chargeInterval.current) clearInterval(chargeInterval.current);
   };
 
   const handleTouch = (e) => {
@@ -146,6 +154,10 @@ export default function GamePage() {
         if (Math.hypot(tx - myPos.current.x, ty - myPos.current.y) < 45) {
             if (now - lastTap.current < 300 && grenadeCount > 0) {
                 setIsCharging(true);
+                let start = Date.now();
+                chargeInterval.current = setInterval(() => {
+                    setChargeProgress(Math.min(1, (Date.now() - start) / 2000));
+                }, 50);
                 chargeTimer.current = setTimeout(launchGrenade, 2000);
             }
             lastTap.current = now;
@@ -167,7 +179,7 @@ export default function GamePage() {
         else if (type === 'shield') { myShieldPos.current.x = Math.max(55, Math.min(W - 55, tx)); myShieldPos.current.y = Math.max(H/2+30, Math.min(H-30, ty)); }
         socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current, boxX: W - myBoxPos.current.x, boxY: H - myBoxPos.current.y, sX: W - myShieldPos.current.x, sY: H - myShieldPos.current.y });
       }
-      if (e.type === "touchend") { if (chargeTimer.current) { clearTimeout(chargeTimer.current); chargeTimer.current = null; } setIsCharging(false); delete activeTouches.current[t.identifier]; }
+      if (e.type === "touchend") { cancelCharge(); delete activeTouches.current[t.identifier]; }
     }
   };
 
@@ -176,6 +188,10 @@ export default function GamePage() {
     let frame;
     const render = () => {
       ctx.clearRect(0, 0, W, H);
+      
+      // Middle Line
+      ctx.setLineDash([10, 10]); ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke(); ctx.setLineDash([]);
+
       enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.85);
       enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.85);
       enemyRot.current = lerp(enemyRot.current, enemyTarget.current.rot, 0.85);
@@ -194,6 +210,7 @@ export default function GamePage() {
         drawHP(p.x, p.y, hp, 150, "#ffea00", isE ? -12 : 22);
         ctx.save(); ctx.translate(p.x, p.y);
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath();
+        // The visible arc
         ctx.arc(0, isE ? 10 : -10, 50, isE ? 0.8 : Math.PI+0.8, isE ? Math.PI-0.8 : 2*Math.PI-0.8);
         ctx.stroke(); ctx.restore();
       };
@@ -214,9 +231,12 @@ export default function GamePage() {
             ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.beginPath(); ctx.arc(0, 60, 22, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = c; ctx.beginPath(); ctx.arc((r/1.3)*18, 60, 8, 0, Math.PI*2); ctx.fill();
             if (isCharging) {
-                ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-                const range = (H / 2) * 0.55;
-                ctx.rotate(r); ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(0, -range - 40); ctx.stroke(); ctx.setLineDash([]);
+                // Trajectory
+                ctx.save(); ctx.rotate(r); ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(0, -(H/2)*0.55 - 40); ctx.stroke(); ctx.restore();
+                // Charge Ring
+                ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath();
+                ctx.arc(0, 0, 45, -Math.PI/2, (-Math.PI/2) + (Math.PI*2*chargeProgress)); ctx.stroke();
             }
         }
         ctx.rotate(r); ctx.fillStyle = c; ctx.beginPath();
@@ -246,9 +266,10 @@ export default function GamePage() {
           for (let t of targets) {
               const dist = Math.hypot(b.x - t.p.x, b.y - t.p.y);
               if ((t.hp === undefined || t.hp > 0) && dist < t.r) {
+                  // ARC-ONLY COLLISION: Check angle of bullet relative to shield center
                   if (t.id === 'shield') {
                       const angle = Math.atan2(b.y - t.p.y, b.x - t.p.x);
-                      const isEnemySide = isMy ? (angle < -0.5 && angle > -Math.PI + 0.5) : (angle > 0.5 && angle < Math.PI - 0.5);
+                      const isEnemySide = isMy ? (angle < -0.8 && angle > -Math.PI + 0.8) : (angle > 0.8 && angle < Math.PI - 0.8);
                       if (!isEnemySide) continue;
                   }
                   addSparks(b.x, b.y, isMy ? "#00f2ff" : "#ff3e3e");
@@ -278,34 +299,35 @@ export default function GamePage() {
                   if (navigator.vibrate) navigator.vibrate(200);
                   if (g.owner === role) {
                       const op = role === 'host' ? 'guest' : 'host';
-                      const targets = [{p: enemyPos.current, id: 'player'}, {p: enemyBoxPos.current, id: 'box', hp: boxHealth[op]}, {p: enemyShieldPos.current, id: 'shield', hp: shieldHealth[op]}];
-                      targets.forEach(v => {
-                          const dist = Math.hypot(g.x - v.p.x, g.y - v.p.y);
-                          if (dist < 100 && (v.hp === undefined || v.hp > 0)) {
-                              const dmg = Math.floor(70 * (1 - dist / 100));
-                              if (dmg > 0) socket.current.emit("take_damage", { roomId, target: v.id, victimRole: op, amount: dmg });
+                      const targs = [{p: enemyPos.current, id: 'player'}, {p: enemyBoxPos.current, id: 'box', hp: boxHealth[op]}, {p: enemyShieldPos.current, id: 'shield', hp: shieldHealth[op]}];
+                      targs.forEach(v => {
+                          const d = Math.hypot(g.x - v.p.x, g.y - v.p.y);
+                          if (d < 100 && (v.hp === undefined || v.hp > 0)) {
+                              const dmg = Math.floor(70 * (1 - d / 100));
+                              socket.current.emit("take_damage", { roomId, target: v.id, victimRole: op, amount: dmg });
                           }
                       });
                   }
               }
-              const radius = 90 * (1.5 - g.life);
-              ctx.strokeStyle = `rgba(255,255,255,${g.life})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(g.x, g.y, radius, 0, Math.PI*2); ctx.stroke();
+              const rad = 90 * (1.5 - g.life);
+              ctx.strokeStyle = `rgba(255,255,255,${g.life})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(g.x, g.y, rad, 0, Math.PI*2); ctx.stroke();
               if (g.life <= 0) grenades.current.splice(i, 1);
           }
       });
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, roomId, boxHealth, shieldHealth, isCharging, grenadeCount]);
+  }, [role, roomId, boxHealth, shieldHealth, isCharging, chargeProgress, grenadeCount]);
+
+  // Mirror HUD Logic: You are always the Cyan/Blue bar at the bottom
+  const opRole = role === 'host' ? 'guest' : 'host';
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
           <span className="name">OPP ({names.them})</span>
-          <div className="mini-hp">
-            <div className="fill red" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/>
-          </div>
+          <div className="mini-hp"><div className="fill red" style={{width: `${(health[opRole]/400)*100}%`}}/></div>
         </div>
         <div className="stat-box">
           <span className="name">YOU ({names.me})</span>
