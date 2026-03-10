@@ -14,6 +14,7 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
+  // FIX: playerNames is now used in the JSX below to prevent Netlify build errors
   const [playerNames, setPlayerNames] = useState({ host: "Player 1", guest: "Player 2" });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
@@ -37,7 +38,7 @@ export default function GamePage() {
   
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const sparks = useRef([]); // Particle system ref
+  const sparks = useRef([]); 
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
@@ -55,7 +56,7 @@ export default function GamePage() {
         socket.current.role = data.role; 
     });
 
-    socket.current.on("opp_move", (data) => { enemyTarget.current = data; });
+    socket.current.on("opp_move", (d) => { enemyTarget.current = d; });
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
     
     socket.current.on("update_game_state", (data) => {
@@ -85,7 +86,6 @@ export default function GamePage() {
       const vx = Math.sin(angle) * 15;
       const vy = -Math.cos(angle) * 15;
       const b = { x: myPos.current.x, y: myPos.current.y - 20, vx, vy };
-      
       socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy, rot: -angle });
       myBullets.current.push(b);
     }, 280);
@@ -107,29 +107,24 @@ export default function GamePage() {
   const handleTouch = (e) => {
     if (!role || gameOver || countdown > 0) return;
     const rect = canvasRef.current.getBoundingClientRect();
-
     if (e.type === "touchstart") {
       for (let t of e.changedTouches) {
         const tx = (t.clientX - rect.left) * (W / rect.width);
         const ty = (t.clientY - rect.top) * (H / rect.height);
         let type = null;
-
         if (Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 45)) < 35) type = 'steering';
         else if (Math.hypot(tx - myPos.current.x, ty - myPos.current.y) < 45) type = 'dragging';
         else if (boxHealth[role] > 0 && Math.hypot(tx - myBoxPos.current.x, ty - myBoxPos.current.y) < 40) type = 'box';
         else if (shieldHealth[role] > 0 && Math.hypot(tx - myShieldPos.current.x, ty - myShieldPos.current.y) < 50) type = 'shield';
-        
         if (type) activeTouches.current[t.identifier] = type;
       }
     }
-
     if (e.type === "touchmove") {
       for (let t of e.changedTouches) {
         const type = activeTouches.current[t.identifier];
         if (!type) continue;
         const tx = (t.clientX - rect.left) * (W / rect.width);
         const ty = (t.clientY - rect.top) * (H / rect.height);
-
         if (type === 'steering') myRot.current = Math.max(-1.2, Math.min(1.2, (tx - myPos.current.x) * 0.05));
         else if (type === 'dragging') {
           myPos.current.x = Math.max(30, Math.min(W - 30, tx));
@@ -154,7 +149,6 @@ export default function GamePage() {
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
-
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.2);
@@ -198,7 +192,6 @@ export default function GamePage() {
       drawS(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
       drawS(enemyPos.current.x, enemyPos.current.y, enemyRot.current, "#ff3e3e", true);
 
-      // Render Sparks
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.life -= 0.05;
         if (s.life <= 0) sparks.current.splice(i, 1);
@@ -208,13 +201,11 @@ export default function GamePage() {
         }
       });
 
-      // Bullet Logic
       [myBullets, enemyBullets].forEach((ref) => {
         ref.current.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
           ctx.fillStyle = ref === myBullets ? "#fffb00" : "#ff3e3e";
           ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
-
           const isMyB = ref === myBullets;
           const oppRole = role === 'host' ? 'guest' : 'host';
           const tP = isMyB ? enemyPos.current : myPos.current;
@@ -247,24 +238,28 @@ export default function GamePage() {
     render(); return () => cancelAnimationFrame(frame);
   }, [role, roomId, boxHealth, shieldHealth]);
 
+  // Variables for the HP bars
   const h_opp = health[role === 'host' ? 'guest' : 'host'];
   const h_me = health[role];
+  const oppName = role === 'host' ? playerNames.guest : playerNames.host;
+  const myName = role === 'host' ? playerNames.host : playerNames.guest;
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
-          <span className="name">OPPONENT</span>
+          {/* FIX: Actually using playerNames state here avoids the ESLint error */}
+          <span className="name">{oppName} (OPP)</span>
           <div className="mini-hp"><div className="fill red" style={{width: `${(h_opp/400)*100}%`}}/></div>
         </div>
         <div className="stat-box">
-          <span className="name">YOU</span>
+          <span className="name">{myName} (YOU)</span>
           <div className="mini-hp"><div className="fill blue" style={{width: `${(h_me/400)*100}%`}}/></div>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
       {countdown > 0 && <div className="overlay"><h1 className="count">{countdown}</h1></div>}
-      {gameOver && <div className="overlay"><h1>{gameOver.toUpperCase()}</h1><button onClick={() => navigate("/")}>EXIT</button></div>}
+      {gameOver && <div className="overlay"><h1 className={gameOver}>{gameOver.toUpperCase()}</h1><button onClick={() => navigate("/")}>EXIT</button></div>}
     </div>
   );
 }
