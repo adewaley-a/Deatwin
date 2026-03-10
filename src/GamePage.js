@@ -36,11 +36,12 @@ export default function GamePage() {
   const enemyPos = useRef({ x: 80, y: 80 });
   const enemyBoxPos = useRef({ x: 60, y: 150 });
   const enemyShieldPos = useRef({ x: 100, y: 200 });
+  const enemyRot = useRef(0);
   const enemyTarget = useRef({ x: 80, y: 80, rot: 0, boxX: 60, boxY: 150, sX: 100, sY: 200 }); 
   
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const sparks = useRef([]); // This is now used in the render loop to avoid ESLint errors
+  const sparks = useRef([]); 
   const grenades = useRef([]); 
 
   const lastTap = useRef(0);
@@ -94,7 +95,6 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Bullet firing logic
   useEffect(() => {
     if (countdown > 0 || gameOver || !role || isCharging) return;
     const fireInt = setInterval(() => {
@@ -104,7 +104,9 @@ export default function GamePage() {
       const vx = Math.sin(angle) * 18;
       const vy = -Math.cos(angle) * 18;
       const b = { x: tipX, y: tipY, vx, vy };
-      socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy, rot: -angle });
+      if(socket.current) {
+        socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy, rot: -angle });
+      }
       myBullets.current.push(b);
     }, 180); 
     return () => clearInterval(fireInt);
@@ -137,7 +139,9 @@ export default function GamePage() {
         distTravelled: 0, maxDist: range,
         stage: 'moving', life: 1.5, owner: role
     };
-    socket.current.emit("throw_grenade", { roomId, x: W - g.x, y: H - g.y, vx: -g.vx, vy: -g.vy, maxDist: range });
+    if(socket.current) {
+        socket.current.emit("throw_grenade", { roomId, x: W - g.x, y: H - g.y, vx: -g.vx, vy: -g.vy, maxDist: range });
+    }
     grenades.current.push(g);
     cancelCharge();
   };
@@ -176,7 +180,9 @@ export default function GamePage() {
         else if (type === 'dragging') { myPos.current.x = Math.max(25, Math.min(W - 25, tx)); myPos.current.y = Math.max(H/2+30, Math.min(H-30, ty)); }
         else if (type === 'box') { myBoxPos.current.x = Math.max(25, Math.min(W - 25, tx)); myBoxPos.current.y = Math.max(H/2+30, Math.min(H-30, ty)); }
         else if (type === 'shield') { myShieldPos.current.x = Math.max(55, Math.min(W - 55, tx)); myShieldPos.current.y = Math.max(H/2+30, Math.min(H-30, ty)); }
-        socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current, boxX: W - myBoxPos.current.x, boxY: H - myBoxPos.current.y, sX: W - myShieldPos.current.x, sY: H - myShieldPos.current.y });
+        if(socket.current) {
+            socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current, boxX: W - myBoxPos.current.x, boxY: H - myBoxPos.current.y, sX: W - myShieldPos.current.x, sY: H - myShieldPos.current.y });
+        }
       }
       if (e.type === "touchend") { cancelCharge(); delete activeTouches.current[t.identifier]; }
     }
@@ -188,9 +194,8 @@ export default function GamePage() {
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // Territory Line
-      ctx.setLineDash([10, 10]); ctx.strokeStyle = "rgba(255,255,255,0.2)"; 
-      ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke(); ctx.setLineDash([]);
+      // Middle Line
+      ctx.setLineDash([10, 10]); ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke(); ctx.setLineDash([]);
 
       enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.85);
       enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.85);
@@ -270,7 +275,9 @@ export default function GamePage() {
                   }
                   addSparks(b.x, b.y, isMy ? "#00f2ff" : "#ff3e3e");
                   ref.current.splice(i, 1);
-                  if (isMy) socket.current.emit("take_damage", { roomId, target: t.id, victimRole: op });
+                  if (isMy && socket.current) {
+                    socket.current.emit("take_damage", { roomId, target: t.id, victimRole: op });
+                  }
                   break;
               }
           }
@@ -278,7 +285,6 @@ export default function GamePage() {
         });
       });
 
-      // Sparks logic (using the array to avoid linter errors)
       if (sparks.current.length > 0) {
         sparks.current.forEach((s, i) => {
           s.x += s.vx; s.y += s.vy; s.life -= 0.05;
@@ -301,7 +307,9 @@ export default function GamePage() {
                       const d = Math.hypot(g.x - v.p.x, g.y - v.p.y);
                       if (d < 100 && (v.hp === undefined || v.hp > 0)) {
                           const dmg = Math.floor(70 * (1 - d / 100));
-                          socket.current.emit("take_damage", { roomId, target: v.id, victimRole: op, amount: dmg });
+                          if(socket.current) {
+                            socket.current.emit("take_damage", { roomId, target: v.id, victimRole: op, amount: dmg });
+                          }
                       }
                   });
               }
