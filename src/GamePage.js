@@ -14,7 +14,6 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
-  // FIX: playerNames is now used in the JSX below to prevent Netlify build errors
   const [playerNames, setPlayerNames] = useState({ host: "Player 1", guest: "Player 2" });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
@@ -22,6 +21,9 @@ export default function GamePage() {
   const [shieldHealth, setShieldHealth] = useState({ host: 150, guest: 150 });
   const [gameOver, setGameOver] = useState(null);
   const [countdown, setCountdown] = useState(3);
+  
+  // Animation state for +5HP
+  const [healAnim, setHealAnim] = useState({ show: false, target: null });
 
   const W = 400, H = 700;
   const myPos = useRef({ x: 200, y: 600 });
@@ -60,9 +62,15 @@ export default function GamePage() {
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
     
     socket.current.on("update_game_state", (data) => {
-      if(data.health) setHealth({...data.health});
-      if(data.boxHealth) setBoxHealth({...data.boxHealth});
-      if(data.shieldHealth) setShieldHealth({...data.shieldHealth});
+      // Logic for healing animation
+      if (data.targetHit === 'box') {
+        setHealAnim({ show: true, target: data.attacker });
+        setTimeout(() => setHealAnim({ show: false, target: null }), 1000);
+      }
+
+      setHealth({...data.health});
+      setBoxHealth({...data.boxHealth});
+      setShieldHealth({...data.shieldHealth});
       
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const lost = socket.current.role === 'host' ? data.health.host <= 0 : data.health.guest <= 0;
@@ -85,7 +93,7 @@ export default function GamePage() {
       const angle = myRot.current;
       const vx = Math.sin(angle) * 15;
       const vy = -Math.cos(angle) * 15;
-      const b = { x: myPos.current.x, y: myPos.current.y - 20, vx, vy };
+      const b = { x: myPos.current.x, y: myPos.current.y - 30, vx, vy };
       socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy, rot: -angle });
       myBullets.current.push(b);
     }, 280);
@@ -95,11 +103,7 @@ export default function GamePage() {
   const createSparks = (x, y, color) => {
     for (let i = 0; i < 8; i++) {
       sparks.current.push({
-        x, y,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6,
-        life: 1.0,
-        color
+        x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 1.0, color
       });
     }
   };
@@ -107,41 +111,43 @@ export default function GamePage() {
   const handleTouch = (e) => {
     if (!role || gameOver || countdown > 0) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    if (e.type === "touchstart") {
-      for (let t of e.changedTouches) {
-        const tx = (t.clientX - rect.left) * (W / rect.width);
-        const ty = (t.clientY - rect.top) * (H / rect.height);
-        let type = null;
-        if (Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 45)) < 35) type = 'steering';
-        else if (Math.hypot(tx - myPos.current.x, ty - myPos.current.y) < 45) type = 'dragging';
-        else if (boxHealth[role] > 0 && Math.hypot(tx - myBoxPos.current.x, ty - myBoxPos.current.y) < 40) type = 'box';
-        else if (shieldHealth[role] > 0 && Math.hypot(tx - myShieldPos.current.x, ty - myShieldPos.current.y) < 50) type = 'shield';
-        if (type) activeTouches.current[t.identifier] = type;
+    for (let t of e.changedTouches) {
+      const tx = (t.clientX - rect.left) * (W / rect.width);
+      const ty = (t.clientY - rect.top) * (H / rect.height);
+      
+      if (e.type === "touchstart") {
+        if (Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 45)) < 35) activeTouches.current[t.identifier] = 'steering';
+        else if (Math.hypot(tx - myPos.current.x, ty - myPos.current.y) < 45) activeTouches.current[t.identifier] = 'dragging';
+        else if (boxHealth[role] > 0 && Math.hypot(tx - myBoxPos.current.x, ty - myBoxPos.current.y) < 40) activeTouches.current[t.identifier] = 'box';
+        else if (shieldHealth[role] > 0 && Math.hypot(tx - myShieldPos.current.x, ty - myShieldPos.current.y) < 50) activeTouches.current[t.identifier] = 'shield';
       }
-    }
-    if (e.type === "touchmove") {
-      for (let t of e.changedTouches) {
+      
+      if (e.type === "touchmove") {
         const type = activeTouches.current[t.identifier];
         if (!type) continue;
-        const tx = (t.clientX - rect.left) * (W / rect.width);
-        const ty = (t.clientY - rect.top) * (H / rect.height);
+        
+        // Allowed anywhere in the user's half (Bottom half for both, as view is mirrored)
+        const minY = H / 2 + 25;
+        const maxY = H - 25;
+
         if (type === 'steering') myRot.current = Math.max(-1.2, Math.min(1.2, (tx - myPos.current.x) * 0.05));
         else if (type === 'dragging') {
-          myPos.current.x = Math.max(30, Math.min(W - 30, tx));
-          myPos.current.y = Math.max(H / 2 + 100, Math.min(H - 80, ty));
+          myPos.current.x = Math.max(25, Math.min(W - 25, tx));
+          myPos.current.y = Math.max(minY, Math.min(maxY, ty));
         } else if (type === 'box') {
-          myBoxPos.current.x = Math.max(30, Math.min(W - 30, tx));
-          myBoxPos.current.y = Math.max(H / 2 + 50, Math.min(H - 50, ty));
+          myBoxPos.current.x = Math.max(25, Math.min(W - 25, tx));
+          myBoxPos.current.y = Math.max(minY, Math.min(maxY, ty));
         } else if (type === 'shield') {
-          myShieldPos.current.x = Math.max(50, Math.min(W - 50, tx));
-          myShieldPos.current.y = Math.max(H / 2 + 20, Math.min(H - 120, ty));
+          myShieldPos.current.x = Math.max(55, Math.min(W - 55, tx));
+          myShieldPos.current.y = Math.max(minY, Math.min(maxY, ty));
         }
+
+        socket.current.emit("move", { 
+          roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current,
+          boxX: W - myBoxPos.current.x, boxY: H - myBoxPos.current.y,
+          sX: W - myShieldPos.current.x, sY: H - myShieldPos.current.y
+        });
       }
-      socket.current.emit("move", { 
-        roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myRot.current,
-        boxX: W - myBoxPos.current.x, boxY: H - myBoxPos.current.y,
-        sX: W - myShieldPos.current.x, sY: H - myShieldPos.current.y
-      });
     }
     if (e.type === "touchend") for (let t of e.changedTouches) delete activeTouches.current[t.identifier];
   };
@@ -151,6 +157,13 @@ export default function GamePage() {
     let frame;
     const render = () => {
       ctx.clearRect(0, 0, W, H);
+
+      // Division Line
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.setLineDash([10, 10]);
+      ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+      ctx.setLineDash([]);
+
       enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.2);
       enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.2);
       enemyRot.current = lerp(enemyRot.current, enemyTarget.current.rot, 0.2);
@@ -159,8 +172,14 @@ export default function GamePage() {
       enemyShieldPos.current.x = lerp(enemyShieldPos.current.x, enemyTarget.current.sX, 0.2);
       enemyShieldPos.current.y = lerp(enemyShieldPos.current.y, enemyTarget.current.sY, 0.2);
 
+      const drawHPBar = (x, y, val, max, color) => {
+        ctx.fillStyle = "#222"; ctx.fillRect(x - 20, y - 35, 40, 4);
+        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 35, (val / max) * 40, 4);
+      };
+
       const drawShield = (p, color, isE, hp) => {
         if (hp <= 0) return;
+        drawHPBar(p.x, p.y - 10, hp, 150, color);
         ctx.save(); ctx.translate(p.x, p.y);
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.lineCap = "round";
         ctx.beginPath();
@@ -172,21 +191,24 @@ export default function GamePage() {
 
       const drawBox = (p, color, hp) => {
         if (hp <= 0) return;
+        drawHPBar(p.x, p.y, hp, 200, color);
         ctx.strokeStyle = color; ctx.lineWidth = 2;
         ctx.strokeRect(p.x - 20, p.y - 20, 40, 40);
       };
       drawBox(myBoxPos.current, "#00f2ff", boxHealth[role]);
       drawBox(enemyBoxPos.current, "#ff3e3e", boxHealth[role === 'host' ? 'guest' : 'host']);
 
+      // Updated Isosceles Triangle Shooter
       const drawS = (x, y, r, c, isE) => {
         ctx.save(); ctx.translate(x, y);
         if (!isE) {
-            ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.beginPath(); ctx.arc(0, 45, 18, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = c; ctx.beginPath(); ctx.arc((r/1.2)*14, 45, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.beginPath(); ctx.arc(0, 50, 18, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = c; ctx.beginPath(); ctx.arc((r/1.2)*14, 50, 7, 0, Math.PI * 2); ctx.fill();
         }
         ctx.rotate(r); ctx.fillStyle = c; ctx.beginPath();
-        if (isE) { ctx.moveTo(0, 20); ctx.lineTo(-18, -12); ctx.lineTo(18, -12); } 
-        else { ctx.moveTo(0, -20); ctx.lineTo(-18, 12); ctx.lineTo(18, 12); }
+        // Triangle: taller height than width
+        if (isE) { ctx.moveTo(0, 35); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); } 
+        else { ctx.moveTo(0, -35); ctx.lineTo(-15, 10); ctx.lineTo(15, 10); }
         ctx.closePath(); ctx.fill(); ctx.restore();
       };
       drawS(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
@@ -195,10 +217,7 @@ export default function GamePage() {
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.life -= 0.05;
         if (s.life <= 0) sparks.current.splice(i, 1);
-        else {
-          ctx.globalAlpha = s.life; ctx.fillStyle = s.color;
-          ctx.fillRect(s.x, s.y, 2, 2); ctx.globalAlpha = 1;
-        }
+        else { ctx.globalAlpha = s.life; ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, 2, 2); ctx.globalAlpha = 1; }
       });
 
       [myBullets, enemyBullets].forEach((ref) => {
@@ -218,7 +237,7 @@ export default function GamePage() {
             if (isMyB) socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: oppRole });
             return;
           }
-          if (Math.hypot(b.x - tP.x, b.y - tP.y) < 22) {
+          if (Math.hypot(b.x - tP.x, b.y - tP.y) < 25) {
             createSparks(b.x, b.y, "#fff");
             ref.current.splice(i, 1);
             if (isMyB) socket.current.emit("take_damage", { roomId, target: 'player', victimRole: oppRole });
@@ -238,23 +257,27 @@ export default function GamePage() {
     render(); return () => cancelAnimationFrame(frame);
   }, [role, roomId, boxHealth, shieldHealth]);
 
-  // Variables for the HP bars
   const h_opp = health[role === 'host' ? 'guest' : 'host'];
   const h_me = health[role];
-  const oppName = role === 'host' ? playerNames.guest : playerNames.host;
-  const myName = role === 'host' ? playerNames.host : playerNames.guest;
+  const myN = role === 'host' ? playerNames.host : playerNames.guest;
+  const oppN = role === 'host' ? playerNames.guest : playerNames.host;
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
-          {/* FIX: Actually using playerNames state here avoids the ESLint error */}
-          <span className="name">{oppName} (OPP)</span>
-          <div className="mini-hp"><div className="fill red" style={{width: `${(h_opp/400)*100}%`}}/></div>
+          <span className="name">{oppN}</span>
+          <div className="mini-hp">
+            <div className="fill red" style={{width: `${(h_opp/400)*100}%`}}/>
+            {healAnim.show && healAnim.target !== role && <span className="heal-text">+5HP</span>}
+          </div>
         </div>
         <div className="stat-box">
-          <span className="name">{myName} (YOU)</span>
-          <div className="mini-hp"><div className="fill blue" style={{width: `${(h_me/400)*100}%`}}/></div>
+          <span className="name">{myN}</span>
+          <div className="mini-hp">
+            <div className="fill blue" style={{width: `${(h_me/400)*100}%`}}/>
+            {healAnim.show && healAnim.target === role && <span className="heal-text">+5HP</span>}
+          </div>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
