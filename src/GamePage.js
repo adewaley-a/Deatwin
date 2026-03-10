@@ -6,6 +6,7 @@ import { db } from "./firebase";
 import "./GamePage.css";
 
 const SOCKET_URL = "https://deatgame-server.onrender.com"; 
+// Faster lerp (0.35) for reduced perceived latency
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
 export default function GamePage() {
@@ -21,22 +22,23 @@ export default function GamePage() {
   const [shieldHealth, setShieldHealth] = useState({ host: 150, guest: 150 });
   const [gameOver, setGameOver] = useState(null);
   const [countdown, setCountdown] = useState(3);
-  
-  // Animation state for +5HP
   const [healAnim, setHealAnim] = useState({ show: false, target: null });
 
   const W = 400, H = 700;
-  const myPos = useRef({ x: 200, y: 600 });
-  const myBoxPos = useRef({ x: 150, y: 530 });
-  const myShieldPos = useRef({ x: 200, y: 480 });
+
+  // REPOSITIONED: Elements now start on the RIGHT side (x: 320) 
+  const myPos = useRef({ x: 320, y: 620 });
+  const myBoxPos = useRef({ x: 340, y: 550 });
+  const myShieldPos = useRef({ x: 300, y: 500 });
   const myRot = useRef(0); 
   const activeTouches = useRef({}); 
 
-  const enemyPos = useRef({ x: 200, y: 100 });
-  const enemyBoxPos = useRef({ x: 250, y: 170 });
-  const enemyShieldPos = useRef({ x: 200, y: 220 });
+  // Opponent starts mirrored
+  const enemyPos = useRef({ x: 80, y: 80 });
+  const enemyBoxPos = useRef({ x: 60, y: 150 });
+  const enemyShieldPos = useRef({ x: 100, y: 200 });
   const enemyRot = useRef(0);
-  const enemyTarget = useRef({ x: 200, y: 100, rot: 0, boxX: 250, boxY: 170, sX: 200, sY: 220 }); 
+  const enemyTarget = useRef({ x: 80, y: 80, rot: 0, boxX: 60, boxY: 150, sX: 100, sY: 200 }); 
   
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
@@ -62,12 +64,10 @@ export default function GamePage() {
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
     
     socket.current.on("update_game_state", (data) => {
-      // Logic for healing animation
       if (data.targetHit === 'box') {
         setHealAnim({ show: true, target: data.attacker });
-        setTimeout(() => setHealAnim({ show: false, target: null }), 1000);
+        setTimeout(() => setHealAnim({ show: false, target: null }), 800);
       }
-
       setHealth({...data.health});
       setBoxHealth({...data.boxHealth});
       setShieldHealth({...data.shieldHealth});
@@ -91,9 +91,9 @@ export default function GamePage() {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
       const angle = myRot.current;
-      const vx = Math.sin(angle) * 15;
-      const vy = -Math.cos(angle) * 15;
-      const b = { x: myPos.current.x, y: myPos.current.y - 30, vx, vy };
+      const vx = Math.sin(angle) * 16;
+      const vy = -Math.cos(angle) * 16;
+      const b = { x: myPos.current.x, y: myPos.current.y - 35, vx, vy };
       socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy, rot: -angle });
       myBullets.current.push(b);
     }, 280);
@@ -101,9 +101,9 @@ export default function GamePage() {
   }, [countdown, gameOver, role, roomId]);
 
   const createSparks = (x, y, color) => {
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 6; i++) {
       sparks.current.push({
-        x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 1.0, color
+        x, y, vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5, life: 1.0, color
       });
     }
   };
@@ -116,7 +116,8 @@ export default function GamePage() {
       const ty = (t.clientY - rect.top) * (H / rect.height);
       
       if (e.type === "touchstart") {
-        if (Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 45)) < 35) activeTouches.current[t.identifier] = 'steering';
+        // Steering wheel check: now closer to the base (y+35 instead of y+45)
+        if (Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 35)) < 45) activeTouches.current[t.identifier] = 'steering';
         else if (Math.hypot(tx - myPos.current.x, ty - myPos.current.y) < 45) activeTouches.current[t.identifier] = 'dragging';
         else if (boxHealth[role] > 0 && Math.hypot(tx - myBoxPos.current.x, ty - myBoxPos.current.y) < 40) activeTouches.current[t.identifier] = 'box';
         else if (shieldHealth[role] > 0 && Math.hypot(tx - myShieldPos.current.x, ty - myShieldPos.current.y) < 50) activeTouches.current[t.identifier] = 'shield';
@@ -125,12 +126,10 @@ export default function GamePage() {
       if (e.type === "touchmove") {
         const type = activeTouches.current[t.identifier];
         if (!type) continue;
-        
-        // Allowed anywhere in the user's half (Bottom half for both, as view is mirrored)
-        const minY = H / 2 + 25;
-        const maxY = H - 25;
+        const minY = H / 2 + 30;
+        const maxY = H - 30;
 
-        if (type === 'steering') myRot.current = Math.max(-1.2, Math.min(1.2, (tx - myPos.current.x) * 0.05));
+        if (type === 'steering') myRot.current = Math.max(-1.3, Math.min(1.3, (tx - myPos.current.x) * 0.05));
         else if (type === 'dragging') {
           myPos.current.x = Math.max(25, Math.min(W - 25, tx));
           myPos.current.y = Math.max(minY, Math.min(maxY, ty));
@@ -158,23 +157,24 @@ export default function GamePage() {
     const render = () => {
       ctx.clearRect(0, 0, W, H);
 
-      // Division Line
-      ctx.strokeStyle = "rgba(255,255,255,0.2)";
-      ctx.setLineDash([10, 10]);
+      // Half division line
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.setLineDash([8, 8]);
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
       ctx.setLineDash([]);
 
-      enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.2);
-      enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.2);
-      enemyRot.current = lerp(enemyRot.current, enemyTarget.current.rot, 0.2);
-      enemyBoxPos.current.x = lerp(enemyBoxPos.current.x, enemyTarget.current.boxX, 0.2);
-      enemyBoxPos.current.y = lerp(enemyBoxPos.current.y, enemyTarget.current.boxY, 0.2);
-      enemyShieldPos.current.x = lerp(enemyShieldPos.current.x, enemyTarget.current.sX, 0.2);
-      enemyShieldPos.current.y = lerp(enemyShieldPos.current.y, enemyTarget.current.sY, 0.2);
+      // Faster Interpolation
+      enemyPos.current.x = lerp(enemyPos.current.x, enemyTarget.current.x, 0.35);
+      enemyPos.current.y = lerp(enemyPos.current.y, enemyTarget.current.y, 0.35);
+      enemyRot.current = lerp(enemyRot.current, enemyTarget.current.rot, 0.35);
+      enemyBoxPos.current.x = lerp(enemyBoxPos.current.x, enemyTarget.current.boxX, 0.35);
+      enemyBoxPos.current.y = lerp(enemyBoxPos.current.y, enemyTarget.current.boxY, 0.35);
+      enemyShieldPos.current.x = lerp(enemyShieldPos.current.x, enemyTarget.current.sX, 0.35);
+      enemyShieldPos.current.y = lerp(enemyShieldPos.current.y, enemyTarget.current.sY, 0.35);
 
       const drawHPBar = (x, y, val, max, color) => {
-        ctx.fillStyle = "#222"; ctx.fillRect(x - 20, y - 35, 40, 4);
-        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 35, (val / max) * 40, 4);
+        ctx.fillStyle = "#222"; ctx.fillRect(x - 20, y - 35, 40, 5);
+        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 35, (val / max) * 40, 5);
       };
 
       const drawShield = (p, color, isE, hp) => {
@@ -183,7 +183,7 @@ export default function GamePage() {
         ctx.save(); ctx.translate(p.x, p.y);
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.lineCap = "round";
         ctx.beginPath();
-        ctx.arc(0, isE ? 10 : -10, 50, isE ? 0.9 : Math.PI + 0.9, isE ? Math.PI - 0.9 : 2 * Math.PI - 0.9);
+        ctx.arc(0, isE ? 10 : -10, 50, isE ? 1 : Math.PI + 1, isE ? Math.PI - 1 : 2 * Math.PI - 1);
         ctx.stroke(); ctx.restore();
       };
       drawShield(myShieldPos.current, "#00f2ff", false, shieldHealth[role]);
@@ -198,17 +198,17 @@ export default function GamePage() {
       drawBox(myBoxPos.current, "#00f2ff", boxHealth[role]);
       drawBox(enemyBoxPos.current, "#ff3e3e", boxHealth[role === 'host' ? 'guest' : 'host']);
 
-      // Updated Isosceles Triangle Shooter
       const drawS = (x, y, r, c, isE) => {
         ctx.save(); ctx.translate(x, y);
         if (!isE) {
-            ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.beginPath(); ctx.arc(0, 50, 18, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = c; ctx.beginPath(); ctx.arc((r/1.2)*14, 50, 7, 0, Math.PI * 2); ctx.fill();
+            // Larger Steering Wheel (arc 22px) and closer (35px from center)
+            ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.beginPath(); ctx.arc(0, 35, 22, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = c; ctx.beginPath(); ctx.arc((r/1.3)*18, 35, 8, 0, Math.PI * 2); ctx.fill();
         }
         ctx.rotate(r); ctx.fillStyle = c; ctx.beginPath();
-        // Triangle: taller height than width
-        if (isE) { ctx.moveTo(0, 35); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); } 
-        else { ctx.moveTo(0, -35); ctx.lineTo(-15, 10); ctx.lineTo(15, 10); }
+        // Isosceles: Base 30, Height 80
+        if (isE) { ctx.moveTo(0, 40); ctx.lineTo(-15, -15); ctx.lineTo(15, -15); } 
+        else { ctx.moveTo(0, -40); ctx.lineTo(-15, 15); ctx.lineTo(15, 15); }
         ctx.closePath(); ctx.fill(); ctx.restore();
       };
       drawS(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
@@ -237,7 +237,7 @@ export default function GamePage() {
             if (isMyB) socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: oppRole });
             return;
           }
-          if (Math.hypot(b.x - tP.x, b.y - tP.y) < 25) {
+          if (Math.hypot(b.x - tP.x, b.y - tP.y) < 28) {
             createSparks(b.x, b.y, "#fff");
             ref.current.splice(i, 1);
             if (isMyB) socket.current.emit("take_damage", { roomId, target: 'player', victimRole: oppRole });
