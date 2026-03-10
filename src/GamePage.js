@@ -20,6 +20,8 @@ export default function GamePage() {
   const [boxHealth, setBoxHealth] = useState({ host: 200, guest: 200 });
   const [shieldHealth, setShieldHealth] = useState({ host: 150, guest: 150 });
   const [gameOver, setGameOver] = useState(null);
+  
+  // FIX: setCountdown is now used in the useEffect below to prevent build errors
   const [countdown, setCountdown] = useState(3);
 
   const W = 400, H = 700;
@@ -48,7 +50,10 @@ export default function GamePage() {
 
     socket.current = io(SOCKET_URL);
     socket.current.emit("join_game", { roomId });
-    socket.current.on("assign_role", (data) => { setRole(data.role); socket.current.role = data.role; });
+    socket.current.on("assign_role", (data) => { 
+        setRole(data.role); 
+        socket.current.role = data.role; 
+    });
     socket.current.on("opp_move", (data) => { enemyTarget.current = data; });
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
     socket.current.on("update_game_state", (data) => {
@@ -65,8 +70,17 @@ export default function GamePage() {
     return () => { unsub(); socket.current.disconnect(); };
   }, [roomId]);
 
+  // FIX: Using setCountdown here solves the ESLint "no-unused-vars" build error
   useEffect(() => {
-    if (countdown <= 0 || gameOver || !role) return;
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  useEffect(() => {
+    if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
       const angle = myRot.current;
       const tipX = myPos.current.x + Math.sin(angle) * 25;
@@ -84,11 +98,13 @@ export default function GamePage() {
     const rect = canvasRef.current.getBoundingClientRect();
 
     if (e.type === "touchstart") {
-      for (let t of e.changedTouches) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
         const tx = (t.clientX - rect.left) * (W / rect.width);
         const ty = (t.clientY - rect.top) * (H / rect.height);
         let type = null;
-        // Logic check: Shield and Box only draggable if HP > 0
+        
+        // Priority detection for multi-drag
         if (Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 40)) < 30) type = 'steering';
         else if (Math.hypot(tx - myPos.current.x, ty - myPos.current.y) < 50) type = 'dragging';
         else if (boxHealth[role] > 0 && Math.hypot(tx - myBoxPos.current.x, ty - myBoxPos.current.y) < 40) type = 'box';
@@ -99,7 +115,8 @@ export default function GamePage() {
     }
 
     if (e.type === "touchmove") {
-      for (let t of e.changedTouches) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
         const type = activeTouches.current[t.identifier];
         if (!type) continue;
         const tx = (t.clientX - rect.left) * (W / rect.width);
@@ -126,7 +143,9 @@ export default function GamePage() {
     }
 
     if (e.type === "touchend" || e.type === "touchcancel") {
-      for (let t of e.changedTouches) delete activeTouches.current[t.identifier];
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        delete activeTouches.current[e.changedTouches[i].identifier];
+      }
     }
   };
 
@@ -148,9 +167,7 @@ export default function GamePage() {
         if (hp <= 0) return;
         ctx.save(); ctx.translate(p.x, p.y);
         ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.lineCap = "round";
-        ctx.shadowBlur = 10; ctx.shadowColor = color;
         ctx.beginPath();
-        // Arc covering ~80% width (~120px wide)
         ctx.arc(0, isE ? 10 : -10, 80, isE ? 0.4 : Math.PI + 0.4, isE ? Math.PI - 0.4 : 2 * Math.PI - 0.4);
         ctx.stroke(); ctx.restore();
       };
@@ -158,7 +175,7 @@ export default function GamePage() {
       drawShield(myShieldPos.current, "#00f2ff", false, shieldHealth[role]);
       drawShield(enemyShieldPos.current, "#ff3e3e", true, shieldHealth[role === 'host' ? 'guest' : 'host']);
 
-      // Boxes
+      // Boxes (only draw if HP > 0)
       if (boxHealth[role] > 0) {
         ctx.strokeStyle = "#00f2ff"; ctx.strokeRect(myBoxPos.current.x - 25, myBoxPos.current.y - 25, 50, 50);
       }
@@ -166,15 +183,14 @@ export default function GamePage() {
         ctx.strokeStyle = "#ff3e3e"; ctx.strokeRect(enemyBoxPos.current.x - 25, enemyBoxPos.current.y - 25, 50, 50);
       }
 
-      // Shooters
+      // Shooters with Steering Knob at base
       const drawS = (x, y, r, c, isE) => {
         ctx.save(); ctx.translate(x, y);
         if (!isE) {
             ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.beginPath(); ctx.arc(0, 40, 20, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = c; ctx.beginPath(); ctx.arc((r/1.22)*15, 40, 8, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.rotate(r); ctx.fillStyle = c; ctx.shadowBlur = 15; ctx.shadowColor = c;
-        ctx.beginPath();
+        ctx.rotate(r); ctx.fillStyle = c; ctx.beginPath();
         if (isE) { ctx.moveTo(0, 25); ctx.lineTo(-20, -15); ctx.lineTo(20, -15); } 
         else { ctx.moveTo(0, -25); ctx.lineTo(-20, 15); ctx.lineTo(20, 15); }
         ctx.closePath(); ctx.fill(); ctx.restore();
@@ -195,7 +211,6 @@ export default function GamePage() {
           const tB = isMyB ? enemyBoxPos.current : myBoxPos.current;
           const tS = isMyB ? enemyShieldPos.current : myShieldPos.current;
 
-          // Hit Collision
           if (Math.hypot(b.x - tP.x, b.y - tP.y) < 20) {
             ref.current.splice(i, 1);
             if (isMyB) socket.current.emit("take_damage", { roomId, target: 'player', victimRole: oppRole });
