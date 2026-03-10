@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore"; // Integrated Firebase
 import { db } from "./firebase"; 
 import "./GamePage.css";
 
@@ -14,6 +14,8 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   
+  // State for dynamic names
+  const [names, setNames] = useState({ me: "...", them: "..." });
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [boxHealth, setBoxHealth] = useState({ host: 200, guest: 200 });
@@ -46,9 +48,26 @@ export default function GamePage() {
   const chargeTimer = useRef(null);
 
   useEffect(() => {
+    // 1. Listen to Firebase for usernames
+    const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
+      if (snap.exists() && role) {
+        const d = snap.data();
+        if (role === 'host') {
+          setNames({ me: d.hostName || "Host", them: d.guestName || "Opponent" });
+        } else {
+          setNames({ me: d.guestName || "Guest", them: d.hostName || "Opponent" });
+        }
+      }
+    });
+
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
-    socket.current.on("assign_role", (data) => { setRole(data.role); socket.current.role = data.role; });
+    
+    socket.current.on("assign_role", (data) => { 
+      setRole(data.role); 
+      socket.current.role = data.role; 
+    });
+
     socket.current.on("opp_move", (d) => { enemyTarget.current = d; });
     socket.current.on("incoming_bullet", (b) => { enemyBullets.current.push(b); });
     socket.current.on("incoming_grenade", (g) => { grenades.current.push(g); });
@@ -62,13 +81,13 @@ export default function GamePage() {
       setBoxHealth({...data.boxHealth});
       setShieldHealth({...data.shieldHealth});
       if (data.health.host <= 0 || data.health.guest <= 0) {
-        const myHealth = socket.current.role === 'host' ? data.health.host : data.health.guest;
-        setGameOver(myHealth <= 0 ? "lose" : "win");
+        const myHP = socket.current.role === 'host' ? data.health.host : data.health.guest;
+        setGameOver(myHP <= 0 ? "lose" : "win");
       }
     });
 
-    return () => { socket.current.disconnect(); };
-  }, [roomId]);
+    return () => { unsub(); socket.current.disconnect(); };
+  }, [roomId, role]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -194,7 +213,6 @@ export default function GamePage() {
         if (!isE) {
             ctx.fillStyle = "rgba(255,255,255,0.1)"; ctx.beginPath(); ctx.arc(0, 60, 22, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = c; ctx.beginPath(); ctx.arc((r/1.3)*18, 60, 8, 0, Math.PI*2); ctx.fill();
-            // Trajectory Dotted Line
             if (isCharging) {
                 ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
                 const range = (H / 2) * 0.55;
@@ -283,8 +301,19 @@ export default function GamePage() {
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
-        <div className="stat-box"><span className="name">OPP</span><div className="mini-hp"><div className="fill red" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/></div></div>
-        <div className="stat-box"><span className="name">YOU</span><div className="mini-hp"><div className="fill blue" style={{width: `${(health[role]/400)*100}%`}}/>{healAnim.show && healAnim.target === role && <span className="heal-text">+5HP</span>}</div></div>
+        <div className="stat-box">
+          <span className="name">OPP ({names.them})</span>
+          <div className="mini-hp">
+            <div className="fill red" style={{width: `${(health[role==='host'?'guest':'host']/400)*100}%`}}/>
+          </div>
+        </div>
+        <div className="stat-box">
+          <span className="name">YOU ({names.me})</span>
+          <div className="mini-hp">
+            <div className="fill blue" style={{width: `${(health[role]/400)*100}%`}}/>
+            {healAnim.show && healAnim.target === role && <span className="heal-text">+5HP</span>}
+          </div>
+        </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
       <div className="grenade-indicator">Grenades: {grenadeCount}</div>
