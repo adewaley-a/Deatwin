@@ -1,35 +1,163 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
+/* Main Container */
 .game-container {
-    width: 100vw; height: 100vh; background: #000;
-    display: flex; flex-direction: column; align-items: center;
-    overflow: hidden; touch-action: none; font-family: 'Orbitron', sans-serif;
+    width: 100vw; 
+    height: 100vh; 
+    background: #000;
+    display: flex; 
+    flex-direction: column; 
+    align-items: center;
+    overflow: hidden; 
+    touch-action: none; 
+    font-family: 'Orbitron', sans-serif;
 }
 
+/* UI Header & Dashboard */
 .header-dashboard {
-    width: 100%; padding: 15px 0; background: #080808;
-    display: flex; justify-content: space-around; align-items: center;
+    width: 100%; 
+    padding: 12px 0; 
+    background: #080808;
+    display: flex; 
+    justify-content: space-around; 
     border-bottom: 2px solid #1a1a1a;
+    z-index: 10;
 }
 
-.stat-box { width: 35%; position: relative; }
-.name { font-size: 0.5rem; color: #aaa; margin-bottom: 4px; display: block; text-align: center; }
+.stat-box { 
+    width: 42%; 
+    position: relative; 
+}
 
+.name { 
+    font-size: 0.55rem; 
+    color: #666; 
+    text-align: center; 
+    display: block; 
+    margin-bottom: 5px; 
+    font-weight: bold; 
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* HP Bar Mechanics */
 .mini-hp { 
-    width: 100%; height: 10px; background: #111; border-radius: 5px; 
-    position: relative; border: 1px solid #222; overflow: hidden;
+    width: 100%; 
+    height: 10px; 
+    background: #111; 
+    border-radius: 5px; 
+    position: relative; 
+    border: 1px solid #222; 
+    overflow: hidden; /* Ensures fills stay inside */
 }
 
-.fill { height: 100%; position: absolute; left: 0; transition: width 0.2s ease-out; }
-.fill.blue { background: #00f2ff; box-shadow: 0 0 8px #00f2ff; z-index: 1; }
-.fill.red { background: #ff3e3e; box-shadow: 0 0 8px #ff3e3e; z-index: 1; }
-.fill.bonus { background: #00ffff; box-shadow: 0 0 12px #00ffff; opacity: 0.8; z-index: 2; }
+.fill { 
+    height: 100%; 
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: width 0.1s linear; 
+}
 
-.grenade-indicator { color: #ffeb3b; font-size: 0.8rem; font-weight: 700; border: 1px solid #ffeb3b; padding: 4px 8px; border-radius: 4px; }
-canvas { flex-grow: 1; width: 100%; background: radial-gradient(circle at center, #111 0%, #000 100%); }
+.fill.blue { 
+    background: #00f2ff; 
+    box-shadow: 0 0 8px #00f2ff; 
+    z-index: 1;
+}
 
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
-.count { font-size: 8rem; color: #fff; text-shadow: 0 0 20px #00f2ff; }
-h1.win { color: #00f2ff; }
-h1.lose { color: #ff3e3e; }
-button { padding: 10px 20px; font-family: 'Orbitron'; cursor: pointer; margin-top: 20px; }
+.fill.red { 
+    background: #ff3e3e; 
+    box-shadow: 0 0 8px #ff3e3e; 
+    z-index: 1;
+}
+
+/* NEW: Shield/Overheal Layer */
+.fill.shield {
+    background: #e1ff00; /* Neon Yellow/Green */
+    box-shadow: 0 0 12px #e1ff00;
+    z-index: 2; /* Sits on top of the blue/red bar */
+    opacity: 0.9;
+}
+
+/* Animations & Feedback */
+.heal-text {
+    position: absolute; 
+    right: 0; 
+    top: -20px;
+    color: #4caf50; 
+    font-weight: 700; 
+    font-size: 0.9rem;
+    animation: fadeUp 0.8s ease-out forwards;
+}
+
+@keyframes fadeUp {
+    0% { opacity: 0; transform: translateY(10px); }
+    30% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-30px); }
+}
+
+/* Grenade Charging UI */
+.charge-bar {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 6px;
+    background: #ff0000;
+    box-shadow: 0 0 15px #ff0000;
+    border-radius: 3px;
+    animation: chargeProgress 2s linear forwards;
+    z-index: 100;
+}
+
+@keyframes chargeProgress {
+    0% { width: 0; opacity: 0.5; }
+    100% { width: 120px; opacity: 1; }
+}
+
+/* Game Canvas */
+canvas { 
+    flex-grow: 1; 
+    width: 100%; 
+    background: radial-gradient(circle, #0a0a0a 0%, #000 100%); 
+    display: block; 
+}
+
+/* Overlays (Countdown/Game Over) */
+.overlay { 
+    position: fixed; 
+    inset: 0; 
+    background: rgba(0,0,0,0.9); 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 100; 
+    backdrop-filter: blur(5px); 
+}
+
+.count { 
+    font-size: 6rem; 
+    color: #fff; 
+    text-shadow: 0 0 15px #00f2ff; 
+}
+
+h1.win { color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
+h1.lose { color: #ff3e3e; text-shadow: 0 0 20px #ff3e3e; }
+
+button { 
+    background: #fff; 
+    color: #000; 
+    padding: 12px 35px; 
+    border: none; 
+    font-family: 'Orbitron'; 
+    font-weight: 700; 
+    margin-top: 20px; 
+    cursor: pointer; 
+    letter-spacing: 2px;
+}
+
+button:active {
+    transform: scale(0.95);
+    background: #ccc;
+}
