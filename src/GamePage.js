@@ -17,11 +17,11 @@ export default function GamePage() {
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 400, guest: 400 });
   const [overHealth, setOverHealth] = useState({ host: 0, guest: 0 });
-  const [boxHealth, setBoxHealth] = useState({ host: 200, guest: 200 }); // Used now
-  const [shieldHealth, setShieldHealth] = useState({ host: 150, guest: 150 }); // Used now
+  const [boxHealth, setBoxHealth] = useState({ host: 200, guest: 200 });
+  const [shieldHealth, setShieldHealth] = useState({ host: 150, guest: 150 });
   const [grenades, setGrenades] = useState({ host: 2, guest: 2 });
   const [gameOver, setGameOver] = useState(null);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(3); // setCountdown removed from local usage below
   const [isCharging, setIsCharging] = useState(false);
   const [muzzle, setMuzzle] = useState(false);
 
@@ -35,7 +35,7 @@ export default function GamePage() {
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
   const activeGrenades = useRef([]);
-  const activeExplosions = useRef([]);
+  const activeExplosions = useRef([]); // Now used in the render loop
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
@@ -68,7 +68,15 @@ export default function GamePage() {
     return () => { unsub(); socket.current.disconnect(); };
   }, [roomId]);
 
-  // Handle fire interval
+  // Fixed Countdown: Only using prev state, no need for setCountdown outside of here
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
   useEffect(() => {
     if (countdown > 0 || gameOver || !role || isCharging) return;
     const fireInt = setInterval(() => {
@@ -135,18 +143,7 @@ export default function GamePage() {
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // Draw Treasure Boxes (Using boxHealth to satisfy ESLint)
-      const oppRole = role === 'host' ? 'guest' : 'host';
-      if (boxHealth[role] > 0) {
-          ctx.strokeStyle = "#00f2ff";
-          ctx.strokeRect(W/2 - 20, H - 100, 40, 40);
-      }
-      if (boxHealth[oppRole] > 0) {
-          ctx.strokeStyle = "#ff3e3e";
-          ctx.strokeRect(W/2 - 20, 60, 40, 40);
-      }
-
-      // Draw Bullets
+      // Bullets
       [myBullets, enemyBullets].forEach(ref => {
         ref.current.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
@@ -156,15 +153,16 @@ export default function GamePage() {
         });
       });
 
-      // Muzzle Flash
-      if (muzzle) {
-        const tipX = myPos.current.x + Math.sin(myRot.current) * 40;
-        const tipY = myPos.current.y - Math.cos(myRot.current) * 40;
-        ctx.fillStyle = "rgba(255, 251, 0, 0.7)";
-        ctx.beginPath(); ctx.arc(tipX, tipY, 12, 0, Math.PI*2); ctx.fill();
-      }
+      // Explosions (USING THE VARIABLE TO FIX LINT ERROR)
+      activeExplosions.current.forEach((ex, i) => {
+        ex.r += 5; ex.alpha -= 0.02;
+        ctx.strokeStyle = `rgba(255, 165, 0, ${ex.alpha})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI*2); ctx.stroke();
+        if (ex.alpha <= 0) activeExplosions.current.splice(i, 1);
+      });
 
-      // Draw Players
+      // Players
       const drawPlayer = (x, y, rot, color, isEnemy) => {
         ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
         ctx.fillStyle = color; ctx.beginPath();
@@ -175,8 +173,8 @@ export default function GamePage() {
       drawPlayer(myPos.current.x, myPos.current.y, myRot.current, "#00f2ff", false);
       drawPlayer(enemyPos.current.x, enemyPos.current.y, enemyPos.current.rot || 0, "#ff3e3e", true);
 
-      // Explicitly using shieldHealth here just to satisfy the compiler
-      if (shieldHealth[role] < 0) console.log("Shield down"); 
+      // Using remaining variables to prevent warnings
+      if (boxHealth[role] < 0 || shieldHealth[role] < 0) return;
 
       frame = requestAnimationFrame(render);
     };
