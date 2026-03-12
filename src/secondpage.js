@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase'; 
 import { 
   doc, collection, query, where, getDocs, onSnapshot, 
-  getDoc, addDoc, updateDoc, limit 
+  getDoc, addDoc, updateDoc, limit, setDoc 
 } from 'firebase/firestore';
 import { 
   onAuthStateChanged, 
   setPersistence, 
   browserSessionPersistence, 
   signOut 
-} from 'firebase/auth'; // Added persistence imports
+} from 'firebase/auth';
 import './secondpage.css';
 
 const NIGERIAN_BANKS = [
@@ -27,17 +27,20 @@ function Login() {
   const [walletBalance, setWalletBalance] = useState(0); 
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // USERNAME SETTING STATES
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+
   // GAME STATES
   const [showMainModal, setShowMainModal] = useState(false);
   const [activeSubModal, setActiveSubModal] = useState(null);
   const [currentRoom, setCurrentRoom] = useState(null);
   const [roomCodeInput, setRoomCodeInput] = useState('');
 
-  // --- PERSISTENCE & AUTH FIX ---
   useEffect(() => {
     let unsubscribeSnapshot = () => {};
 
-    // Force Firebase to use Session Persistence (Tab-based)
     setPersistence(auth, browserSessionPersistence)
       .then(() => {
         return onAuthStateChanged(auth, async (currentUser) => {
@@ -45,15 +48,25 @@ function Login() {
             setUser(currentUser);
             const userDocRef = doc(db, "users", currentUser.uid);
             
-            // Listen to user data changes
+            // Initial check for username existence
+            const initialSnap = await getDoc(userDocRef);
+            if (!initialSnap.exists() || !initialSnap.data().username) {
+              setShowUsernameModal(true);
+            }
+
             unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
               if (docSnap.exists()) {
-                setUsername(docSnap.data().username);
-                setWalletBalance(docSnap.data().wallet_balance || 0);
+                const data = docSnap.data();
+                setUsername(data.username || '');
+                setWalletBalance(data.wallet_balance || 0);
+                
+                // Close modal if username finally exists
+                if (data.username) setShowUsernameModal(false);
+              } else {
+                setShowUsernameModal(true);
               }
             });
           } else {
-            // Clear state if user logs out or session expires
             setUser(null);
             setUsername('');
             setWalletBalance(0);
@@ -66,10 +79,42 @@ function Login() {
         setLoading(false);
       });
 
-    return () => {
-      unsubscribeSnapshot();
-    };
+    return () => unsubscribeSnapshot();
   }, []);
+
+  // --- USERNAME SAVING LOGIC ---
+  const handleSaveUsername = async () => {
+    if (!usernameInput || usernameInput.length < 3) return alert("Username too short!");
+    if (!user) return;
+
+    setIsSavingUsername(true);
+    try {
+      // Check for uniqueness
+      const q = query(collection(db, "users"), where("username", "==", usernameInput.trim()));
+      const querySnap = await getDocs(q);
+
+      if (!querySnap.empty) {
+        alert("Username already taken!");
+        setIsSavingUsername(false);
+        return;
+      }
+
+      // Save to Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        username: usernameInput.trim(),
+        wallet_balance: 0,
+        email: user.email,
+        createdAt: new Date()
+      }, { merge: true });
+
+      setShowUsernameModal(false);
+    } catch (error) {
+      console.error("Error saving username:", error);
+      alert("Failed to save username.");
+    } finally {
+      setIsSavingUsername(false);
+    }
+  };
 
   // --- 1. DEPOSIT LOGIC ---
   const handleDeposit = async () => {
@@ -138,7 +183,6 @@ function Login() {
         const data = snap.data();
         setCurrentRoom({ id: snap.id, ...data });
         if (data.status === "active") {
-          console.log("Room is ACTIVE! Redirecting...");
           window.location.href = `/game/${snap.id}`;
         }
       }
@@ -185,32 +229,18 @@ function Login() {
     });
   };
 
-  // --- LOCK-IN TRIGGER ---
   useEffect(() => {
     if (currentRoom && currentRoom.status === "negotiating") {
       const voteKeys = Object.keys(currentRoom.votes || {});
       const voteValues = Object.values(currentRoom.votes || {});
       
       if (voteKeys.length === 2 && voteValues[0] === voteValues[1]) {
-        console.log("LOG: Agreement reached on amount ₦" + voteValues[0]);
-        
         fetch('https://deatwin-server.onrender.com/lock-in-bet', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ roomId: currentRoom.id, userId: user.uid })
         })
-        .then(async (res) => {
-          const data = await res.json();
-          if (res.ok) {
-            console.log("LOG: Server successfully locked the bet.");
-          } else {
-            console.error("LOG: Server rejected lock-in:", data.message);
-            alert("Lock-in failed: " + data.message);
-          }
-        })
-        .catch(err => {
-          console.error("LOG: Network error contacting server:", err);
-        });
+        .catch(err => console.error("Lock-in error:", err));
       }
     }
   }, [currentRoom, user]);
@@ -225,6 +255,25 @@ function Login() {
 
   return (
     <div className="second-container">
+      {/* USERNAME MODAL OVERLAY */}
+      {showUsernameModal && (
+        <div className="modal-overlay username-setup">
+          <div className="modal-content">
+            <h2>Set Your Username</h2>
+            <p>Choose a unique name to start playing.</p>
+            <input 
+              type="text"
+              placeholder="Username..."
+              value={usernameInput}
+              onChange={(e) => setUsernameInput(e.target.value)}
+            />
+            <button disabled={isSavingUsername} onClick={handleSaveUsername}>
+              {isSavingUsername ? "Saving..." : "Start Playing"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="divisionwan">
         <div className='secwan' onClick={handleLogout} style={{cursor: 'pointer'}}>
           {username || "Guest"} (Logout)

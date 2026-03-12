@@ -1,164 +1,201 @@
-
-.divisionwan{
-    display: flex;
-width: 100%;
-border: 2px solid red;
-height: 60px;
+/* --- EXISTING NAVIGATION & LAYOUT --- */
+.divisionwan {
+  display: flex;
+  width: 100%;
+  border: 2px solid red;
+  height: 60px;
 }
+
 .divisionwan > div {
-    flex: 1; /* This tells both divs to grow and take up equal space */
-    border: 1px solid blue; /* Just so you can see them */
+  flex: 1; 
+  border: 1px solid blue;
 }
 
 .divibox {
-    display: flex;
-    width: 100%;
-    border: 2px solid red;
-    min-height: 100vh; /* Takes at least 100% of the screen height */
+  display: flex;
+  width: 100%;
+  border: 2px solid red;
+  min-height: 100vh;
 }
+
 .divibox > div {
-    flex: 1; /* This tells both divs to grow and take up equal space */
-    border: 1px solid blue; /* Just so you can see them */
+  flex: 1;
+  border: 1px solid blue;
 }
-.gamebox{
-    display: flex;
-    width: 100%;
-    border: 2px solid red;
-    min-height: 100vh; /* Takes at least 100% of the screen height */
+
+.gamebox {
+  display: flex;
+  width: 100%;
+  border: 2px solid red;
+  min-height: 100vh;
 }
+
 .gamebox > div {
-    flex: 1; /* This tells both divs to grow and take up equal space */
-    border: 1px solid rgb(0, 0, 0); /* Just so you can see them */
+  flex: 1;
+  border: 1px solid rgb(0, 0, 0);
 }
 
-.gamebox1{
-    
+.ponline {
+  height: 40px;
+  width: 70%;
+  border-radius: 20px;
+  border: 2px solid red;
+  line-height: 40px;
+  text-align: center;
+  margin: auto;
+  margin-top: 20%;
 }
-.ponline{
-    height: 40px;
-    width: 70%;
-    border-radius: 20px;
-    border: 2px solid red;
-    line-height: 40px;
-    text-align: center;
-    margin: auto;
-    margin-top: 20%;
-}
-.modal-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;
-  }
-  .modal-content {
-    background: white; padding: 30px; border-radius: 15px; position: relative;
-    text-align: center; color: black; min-width: 300px;
-  }
-  .close-modal {
-    position: absolute; top: 10px; right: 15px; cursor: pointer; font-weight: bold;
-  }
-  .price-grid { display: flex; gap: 10px; justify-content: center; margin-top: 15px; }
-  .voted { background: gold !important; color: black; border: 2px solid orange; }
 
-  /* Full screen background blur/darken */
+/* --- MODAL OVERLAY (Shared) --- */
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-    backdrop-filter: blur(5px);
-  }
-  
-  /* The actual modal box */
-  .modal-content {
-    background: #1a1a1a;
-    color: white;
-    padding: 40px;
-    border-radius: 20px;
-    border: 2px solid #333;
-    width: 90%;
-    max-width: 400px;
-    text-align: center;
-    position: relative;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  }
-  
-  /* Close button (top right) */
-  .close-modal {
-    position: absolute;
-    top: 15px;
-    right: 20px;
-    font-size: 24px;
-    cursor: pointer;
-    color: #888;
-    transition: 0.3s;
-  }
-  
-  .close-modal:hover {
-    color: white;
-  }
-  
-  /* Step container spacing */
-  .step h2 {
-    margin-bottom: 25px;
-    font-size: 22px;
-    letter-spacing: 1px;
-  }
-  
-  .step button {
-    width: 100%;
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 8px;
-    border: none;
-    background: #444;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s ease;
-  }
-  
-  .step button:hover {
-    background: #666;
-  }
-  
-  /* Input for Room Code */
-  .step input {
-    width: 100%;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #444;
-    background: #000;
-    color: gold;
-    text-align: center;
-    font-size: 18px;
-    margin-bottom: 10px;
-  }
-  
-  /* Price Negotiation Grid */
-  .price-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px;
-    margin-top: 20px;
-  }
-  
-  .price-grid button {
-    background: #222;
-    border: 1px solid #444;
-    padding: 15px 5px;
-    font-size: 14px;
-  }
-  
-  /* The "Active/Selected" price button */
-  .price-grid button.voted {
-    background: gold;
-    color: black;
-    border-color: #ffcc00;
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(255, 204, 0, 0.4);
-  }
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(5px);
+}
+
+/* --- MODAL CONTENT BOX (Shared) --- */
+.modal-content {
+  background: #1a1a1a;
+  color: white;
+  padding: 40px;
+  border-radius: 20px;
+  border: 2px solid #333;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* --- NEW: USERNAME SETUP SPECIFIC STYLES --- */
+.username-setup h2 {
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.username-setup p {
+  font-size: 14px;
+  color: #888;
+  margin-bottom: 20px;
+}
+
+.username-setup input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #000;
+  color: #fff;
+  font-size: 16px;
+  margin-bottom: 20px;
+  outline: none;
+}
+
+.username-setup input:focus {
+  border-color: gold;
+}
+
+.username-setup button {
+  width: 100%;
+  padding: 12px;
+  background: gold;
+  color: black;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.username-setup button:hover {
+  background: #ffcc00;
+  transform: translateY(-2px);
+}
+
+.username-setup button:disabled {
+  background: #444;
+  color: #888;
+  cursor: not-allowed;
+}
+
+/* --- GAME MODAL ELEMENTS --- */
+.close-modal {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-size: 24px;
+  cursor: pointer;
+  color: #888;
+  transition: 0.3s;
+}
+
+.close-modal:hover {
+  color: white;
+}
+
+.step h2 {
+  margin-bottom: 25px;
+  font-size: 22px;
+  letter-spacing: 1px;
+}
+
+.step button {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: none;
+  background: #444;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s ease;
+}
+
+.step button:hover {
+  background: #666;
+}
+
+.step input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #000;
+  color: gold;
+  text-align: center;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+/* --- PRICE NEGOTIATION GRID --- */
+.price-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.price-grid button {
+  background: #222;
+  border: 1px solid #444;
+  padding: 15px 5px;
+  font-size: 14px;
+}
+
+.price-grid button.voted {
+  background: gold;
+  color: black;
+  border-color: #ffcc00;
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(255, 204, 0, 0.4);
+}
