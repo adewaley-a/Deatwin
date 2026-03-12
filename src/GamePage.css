@@ -1,56 +1,178 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
+/* Main Container Setup */
 .game-container {
-    width: 100vw; height: 100vh; background: #000;
-    display: flex; flex-direction: column; align-items: center;
-    overflow: hidden; touch-action: none; font-family: 'Orbitron', sans-serif;
+    width: 100vw; 
+    height: 100vh; 
+    background: #000;
+    display: flex; 
+    flex-direction: column; 
+    align-items: center;
+    overflow: hidden; 
+    touch-action: none; /* Critical for lag-free mobile touch */
+    font-family: 'Orbitron', sans-serif;
 }
 
+/* UI Dashboard */
 .header-dashboard {
-    width: 100%; padding: 15px 0; background: #080808;
-    display: flex; justify-content: space-around; border-bottom: 2px solid #1a1a1a;
+    width: 100%; 
+    padding: 15px 0; 
+    background: #080808;
+    display: flex; 
+    justify-content: space-around; 
+    border-bottom: 2px solid #1a1a1a;
     z-index: 10;
 }
 
-.stat-box { width: 42%; position: relative; }
-.name { font-size: 0.6rem; color: #888; text-align: center; display: block; margin-bottom: 6px; font-weight: bold; }
+.stat-box { 
+    width: 42%; 
+    position: relative; 
+}
 
-.mini-hp { width: 100%; height: 12px; background: #111; border-radius: 6px; position: relative; border: 1px solid #333; overflow: hidden; }
-.fill { height: 100%; position: absolute; top: 0; left: 0; transition: width 0.15s ease-out; }
-.fill.blue { background: #00f2ff; box-shadow: 0 0 10px #00f2ff; z-index: 1; }
-.fill.red { background: #ff3e3e; box-shadow: 0 0 10px #ff3e3e; z-index: 1; }
+.name { 
+    font-size: 0.6rem; 
+    color: #888; 
+    text-align: center; 
+    display: block; 
+    margin-bottom: 6px; 
+    font-weight: bold; 
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
 
-/* The Extra Health Layer */
+/* HP Bar Container */
+.mini-hp { 
+    width: 100%; 
+    height: 12px; 
+    background: #111; 
+    border-radius: 6px; 
+    position: relative; 
+    border: 1px solid #333; 
+    overflow: hidden; 
+}
+
+/* HP Fills */
+.fill { 
+    height: 100%; 
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: width 0.1s ease-out; 
+}
+
+.fill.blue { 
+    background: #00f2ff; 
+    box-shadow: 0 0 10px #00f2ff; 
+    z-index: 1;
+}
+
+.fill.red { 
+    background: #ff3e3e; 
+    box-shadow: 0 0 10px #ff3e3e; 
+    z-index: 1;
+}
+
+/* Shield (Overheal) Layer */
 .fill.shield {
-    background: #e1ff00;
+    background: #e1ff00; /* Neon Yellow */
     box-shadow: 0 0 15px #e1ff00;
     z-index: 2; /* Sits on top of the blue/red bar */
+    opacity: 0.9;
 }
 
-/* Grenade Charge Loader */
+/* Lifesteal +5 HP Animation */
+.heal-popup {
+    position: absolute;
+    right: 0;
+    top: -35px;
+    color: #4aff4a;
+    font-weight: 900;
+    font-size: 1.2rem;
+    text-shadow: 0 0 8px #00ff00;
+    pointer-events: none;
+    animation: floatUpAndFade 0.8s ease-out forwards;
+}
+
+@keyframes floatUpAndFade {
+    0% { opacity: 0; transform: translateY(15px); }
+    30% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-45px); }
+}
+
+/* Full Screen Overlays */
+.overlay { 
+    position: fixed; 
+    inset: 0; 
+    background: rgba(0, 0, 0, 0.85); 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 100; 
+    backdrop-filter: blur(8px); 
+}
+
+/* Synced Countdown Text */
+.count { 
+    font-size: 9rem; 
+    color: #fff; 
+    text-shadow: 0 0 25px #00f2ff; 
+    animation: pulseSync 1s infinite;
+}
+
+@keyframes pulseSync {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.15); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Grenade Charging UI */
 .charge-bar {
     position: fixed;
-    bottom: 50px;
-    width: 150px;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
     height: 8px;
-    background: #333;
-    border: 1px solid #ff0000;
-    overflow: hidden;
-}
-.charge-bar::after {
-    content: '';
-    display: block;
-    height: 100%;
     background: #ff0000;
-    animation: chargeProgress 2s linear forwards;
+    box-shadow: 0 0 20px #ff0000;
+    border-radius: 4px;
+    width: 140px;
+    animation: chargeExpand 2s linear forwards;
+    z-index: 100;
 }
 
-@keyframes chargeProgress {
-    0% { width: 0; }
-    100% { width: 100%; }
+@keyframes chargeExpand {
+    0% { width: 0; background: #550000; }
+    100% { width: 140px; background: #ff0000; }
 }
 
-canvas { flex-grow: 1; width: 100%; background: radial-gradient(circle, #111 0%, #000 100%); display: block; }
+/* Canvas Element */
+canvas { 
+    flex-grow: 1; 
+    width: 100%; 
+    background: radial-gradient(circle at center, #0d0d0d 0%, #000 100%); 
+    display: block; 
+}
 
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
-.count { font-size: 10rem; color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
+/* Game Results */
+h1.win { color: #00f2ff; text-shadow: 0 0 30px #00f2ff; font-size: 3rem; }
+h1.lose { color: #ff3e3e; text-shadow: 0 0 30px #ff3e3e; font-size: 3rem; }
+
+button { 
+    background: #00f2ff; 
+    color: #000; 
+    padding: 14px 40px; 
+    border: none; 
+    font-family: 'Orbitron'; 
+    font-weight: 700; 
+    margin-top: 30px; 
+    cursor: pointer; 
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    transition: 0.2s;
+}
+
+button:active {
+    transform: scale(0.9);
+    background: #fff;
+}
