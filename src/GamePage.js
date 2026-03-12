@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import "./GamePage.css";
@@ -18,17 +18,18 @@ export default function GamePage() {
   const [countdown, setCountdown] = useState(null);
 
   const W = 400, H = 700;
-  const MID = H / 2; // Mid-point boundary
+  const MID = H / 2; 
   
   const myPos = useRef({ x: 200, y: 600, rot: 0 });
   const enemyPos = useRef({ x: 200, y: 100, rot: 0 });
-  const boxPos = useRef({ x: 200, y: 450 }); // Start in user's half
+  const boxPos = useRef({ x: 200, y: 450 }); 
   
   const dragTarget = useRef(null); 
   const lastTap = useRef(0);
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
 
+  // Socket Connection & Listeners
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -51,7 +52,8 @@ export default function GamePage() {
     return () => socket.current?.disconnect();
   }, [roomId]);
 
-  const handleTouch = (e) => {
+  // Handle Touch Events
+  const handleTouch = useCallback((e) => {
     if (!role || gameOver || countdown > 0) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const t = e.changedTouches[0];
@@ -75,7 +77,6 @@ export default function GamePage() {
     }
 
     if (e.type === "touchmove") {
-      // BOUNDARY ENFORCEMENT: ty cannot be less than MID
       const constrainedY = Math.max(MID + 20, ty); 
 
       if (dragTarget.current === 'player') {
@@ -90,27 +91,28 @@ export default function GamePage() {
       }
       else if (dragTarget.current === 'wheel') {
         const angle = Math.atan2(ty - myPos.current.y, tx - myPos.current.x) + Math.PI/2;
-        const limit = 1.22; // 70 degrees
+        const limit = 1.22;
         myPos.current.rot = Math.max(-limit, Math.min(limit, angle));
         socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myPos.current.rot });
       }
     }
     if (e.type === "touchend") dragTarget.current = null;
-  };
+  }, [role, gameOver, countdown, roomId, MID, W, H]);
 
+  // Main Render Loop
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // MID SEPARATION LINE
+      // MID LINE
       ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
       ctx.setLineDash([10, 10]);
       ctx.beginPath(); ctx.moveTo(0, MID); ctx.lineTo(W, MID); ctx.stroke();
-      ctx.setLineDash([]); // Reset dash
+      ctx.setLineDash([]);
 
-      // DRAW TREASURE BOX
+      // BOX
       ctx.fillStyle = "#e1ff00";
       ctx.shadowBlur = 15; ctx.shadowColor = "#e1ff00";
       ctx.fillRect(boxPos.current.x - 20, boxPos.current.y - 20, 40, 40);
@@ -135,7 +137,6 @@ export default function GamePage() {
       drawEntity(myPos.current.x, myPos.current.y, myPos.current.rot, "#00f2ff", false, overHealth[role]);
       drawEntity(enemyPos.current.x, enemyPos.current.y, enemyPos.current.rot, "#ff3e3e", true, overHealth[role === 'host' ? 'guest' : 'host']);
 
-      // BULLET LOGIC
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff";
@@ -149,21 +150,14 @@ export default function GamePage() {
           socket.current.emit("take_damage", { roomId, target: 'player', victimRole: role === 'host' ? 'guest' : 'host' });
           myBullets.current.splice(i, 1);
         }
-        if (b.y < -50 || b.y > H + 50) myBullets.current.splice(i, 1);
-      });
-
-      enemyBullets.current.forEach((b, i) => {
-        b.x += b.vx; b.y += b.vy;
-        ctx.fillStyle = "#ff3e3e";
-        ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        if (b.y > H + 50) enemyBullets.current.splice(i, 1);
       });
 
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, overHealth, boxPos.current]);
+  }, [role, overHealth, roomId, MID, W, H]);
 
+  // Autofire logic
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -174,15 +168,42 @@ export default function GamePage() {
       socket.current.emit("fire", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, vx: -vx, vy: -vy });
     }, 200);
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role]);
+  }, [countdown, gameOver, role, roomId, W, H]);
+
+  // Countdown Logic
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+    const timer = setInterval(() => setCountdown(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
-        {/* Same stat-box structure for Enemy and You */}
+        <div className="stat-box">
+          <span className="name">ENEMY</span>
+          <div className="mini-hp">
+            <div className="fill red" style={{width: `${role ? (health[role === 'host' ? 'guest' : 'host'] / 400) * 100 : 100}%`}}/>
+          </div>
+        </div>
+        <div className="stat-box">
+          <span className="name">YOU</span>
+          <div className="mini-hp">
+            <div className="fill blue" style={{width: `${role ? (health[role] / 400) * 100 : 100}%`}}/>
+            <div className="fill shield" style={{width: `${role ? (overHealth[role] / 200) * 100 : 0}%`}}/>
+          </div>
+        </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
-      {/* Overlays */}
+      {countdown !== null && countdown > 0 && (
+        <div className="overlay"><div className="count">{countdown}</div></div>
+      )}
+      {gameOver && (
+        <div className="overlay">
+          <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
+          <button onClick={() => navigate("/")}>EXIT</button>
+        </div>
+      )}
     </div>
   );
 }
