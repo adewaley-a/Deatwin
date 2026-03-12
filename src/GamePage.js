@@ -12,47 +12,53 @@ export default function GamePage() {
   const canvasRef = useRef(null);
   
   const [role, setRole] = useState(null); 
-  const [health, setHealth] = useState({ host: 400, guest: 400 });
-  const [overHealth, setOverHealth] = useState({ host: 0, guest: 0 });
+  const [gameState, setGameState] = useState(null);
   const [gameOver, setGameOver] = useState(null);
   const [countdown, setCountdown] = useState(null);
 
   const W = 400, H = 700;
   const MID = H / 2; 
   
+  // Local Refs for Smooth Movement
   const myPos = useRef({ x: 200, y: 600, rot: 0 });
-  const enemyPos = useRef({ x: 200, y: 100, rot: 0 });
-  const boxPos = useRef({ x: 200, y: 450 }); 
-  
+  const myBoxPos = useRef({ x: 100, y: 500 });
+  const myShieldPos = useRef({ x: 300, y: 500 });
+
+  const oppPos = useRef({ x: 200, y: 100, rot: 0 });
+  const oppBoxPos = useRef({ x: 300, y: 200 });
+  const oppShieldPos = useRef({ x: 100, y: 200 });
+
   const dragTarget = useRef(null); 
-  const lastTap = useRef(0);
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
 
-  // Socket Connection & Listeners
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
     
     socket.current.on("assign_role", (data) => setRole(data.role));
     socket.current.on("start_countdown", () => setCountdown(3));
-    socket.current.on("opp_move", (d) => { enemyPos.current = d; });
-    socket.current.on("box_move", (d) => { boxPos.current = d; });
+
+    socket.current.on("sync_all", (data) => {
+      // Mirroring Logic: Invert opponent's coordinates for local display
+      oppPos.current = { x: W - data.pos.x, y: H - data.pos.y, rot: -data.pos.rot };
+      oppBoxPos.current = { x: W - data.box.x, y: H - data.box.y };
+      oppShieldPos.current = { x: W - data.shield.x, y: H - data.shield.y };
+    });
+
     socket.current.on("incoming_bullet", (b) => enemyBullets.current.push(b));
     
     socket.current.on("update_game_state", (data) => {
-      setHealth(data.health);
-      setOverHealth(data.overHealth);
-      if (data.health.host <= 0 || data.health.guest <= 0) {
-        const iAmHost = socket.current.id === data.host; 
-        setGameOver((iAmHost ? data.health.host <= 0 : data.health.guest <= 0) ? "lose" : "win");
+      setGameState(data);
+      if (data.health[data.host] <= 0 || data.health[data.guest] <= 0) {
+        const lost = data.health[socket.current.id] <= 0;
+        setGameOver(lost ? "lose" : "win");
       }
     });
 
     return () => socket.current?.disconnect();
-  }, [roomId]);
+  }, [roomId, W, H]);
 
-  // Handle Touch Events
   const handleTouch = useCallback((e) => {
     if (!role || gameOver || countdown > 0) return;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -61,45 +67,34 @@ export default function GamePage() {
     const ty = (t.clientY - rect.top) * (H / rect.height);
 
     if (e.type === "touchstart") {
-      const distToWheel = Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 20));
-      const distToBox = Math.hypot(tx - boxPos.current.x, ty - boxPos.current.y);
-      const distToPlayer = Math.hypot(tx - myPos.current.x, ty - myPos.current.y);
-
-      if (distToWheel < 50) dragTarget.current = 'wheel';
-      else if (distToBox < 40) dragTarget.current = 'box';
-      else if (distToPlayer < 50) dragTarget.current = 'player';
-      
-      const now = Date.now();
-      if (dragTarget.current === 'player' && now - lastTap.current < 300) {
-        socket.current.emit("toss_grenade", { roomId, x: tx, y: ty });
-      }
-      lastTap.current = now;
+      if (Math.hypot(tx - myPos.current.x, ty - (myPos.current.y + 20)) < 50) dragTarget.current = 'wheel';
+      else if (Math.hypot(tx - myBoxPos.current.x, ty - myBoxPos.current.y) < 40) dragTarget.current = 'box';
+      else if (Math.hypot(tx - myShieldPos.current.x, ty - myShieldPos.current.y) < 40) dragTarget.current = 'shield';
+      else if (Math.hypot(tx - myPos.current.x, ty - myPos.current.y) < 50) dragTarget.current = 'player';
     }
 
     if (e.type === "touchmove") {
-      const constrainedY = Math.max(MID + 20, ty); 
+      const minY = MID + 40; // Strict boundary
+      const cy = Math.max(minY, ty);
 
-      if (dragTarget.current === 'player') {
-        myPos.current.x = tx; 
-        myPos.current.y = constrainedY;
-        socket.current.emit("move", { roomId, x: W - tx, y: H - constrainedY, rot: -myPos.current.rot });
-      } 
-      else if (dragTarget.current === 'box') {
-        boxPos.current.x = tx; 
-        boxPos.current.y = constrainedY;
-        socket.current.emit("sync_box", { roomId, x: W - tx, y: H - constrainedY });
-      }
+      if (dragTarget.current === 'player') { myPos.current.x = tx; myPos.current.y = cy; } 
+      else if (dragTarget.current === 'box') { myBoxPos.current.x = tx; myBoxPos.current.y = cy; }
+      else if (dragTarget.current === 'shield') { myShieldPos.current.x = tx; myShieldPos.current.y = cy; }
       else if (dragTarget.current === 'wheel') {
         const angle = Math.atan2(ty - myPos.current.y, tx - myPos.current.x) + Math.PI/2;
-        const limit = 1.22;
-        myPos.current.rot = Math.max(-limit, Math.min(limit, angle));
-        socket.current.emit("move", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, rot: -myPos.current.rot });
+        myPos.current.rot = Math.max(-1.22, Math.min(1.22, angle));
       }
+
+      socket.current.emit("client_movement", {
+        roomId,
+        pos: myPos.current,
+        box: myBoxPos.current,
+        shield: myShieldPos.current
+      });
     }
     if (e.type === "touchend") dragTarget.current = null;
   }, [role, gameOver, countdown, roomId, MID, W, H]);
 
-  // Main Render Loop
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
@@ -108,102 +103,81 @@ export default function GamePage() {
       
       // MID LINE
       ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-      ctx.setLineDash([10, 10]);
       ctx.beginPath(); ctx.moveTo(0, MID); ctx.lineTo(W, MID); ctx.stroke();
-      ctx.setLineDash([]);
 
-      // BOX
-      ctx.fillStyle = "#e1ff00";
-      ctx.shadowBlur = 15; ctx.shadowColor = "#e1ff00";
-      ctx.fillRect(boxPos.current.x - 20, boxPos.current.y - 20, 40, 40);
-      ctx.shadowBlur = 0;
+      const drawAsset = (x, y, label, hp, maxHp, color, isBox, rot = 0) => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rot);
+        
+        // Asset Body
+        ctx.fillStyle = color;
+        if (isBox) ctx.fillRect(-20, -20, 40, 40);
+        else { // Triangle/Shield design
+          ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI * 2); ctx.fill();
+        }
 
-      const drawEntity = (x, y, rot, color, isEnemy, hpShield) => {
-        ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
-        if (!isEnemy) {
-            ctx.strokeStyle = "rgba(0, 242, 255, 0.4)";
-            ctx.beginPath(); ctx.arc(0, 20, 45, Math.PI, 0, true); ctx.stroke();
-        }
-        if (hpShield > 0) {
-          ctx.strokeStyle = "#e1ff00"; ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.arc(0, isEnemy ? 10 : -10, 45, isEnemy ? 0 : Math.PI, isEnemy ? Math.PI : 0); ctx.stroke();
-        }
-        ctx.fillStyle = color; ctx.beginPath();
-        if (isEnemy) { ctx.moveTo(0, 40); ctx.lineTo(-20, -10); ctx.lineTo(20, -10); }
-        else { ctx.moveTo(0, -40); ctx.lineTo(-20, 10); ctx.lineTo(20, 10); }
-        ctx.fill(); ctx.restore();
+        // Mini HP Bar
+        const barW = 40;
+        ctx.fillStyle = "#333"; ctx.fillRect(-barW/2, 30, barW, 5);
+        ctx.fillStyle = color; ctx.fillRect(-barW/2, 30, (hp/maxHp) * barW, 5);
+        ctx.restore();
       };
 
-      drawEntity(myPos.current.x, myPos.current.y, myPos.current.rot, "#00f2ff", false, overHealth[role]);
-      drawEntity(enemyPos.current.x, enemyPos.current.y, enemyPos.current.rot, "#ff3e3e", true, overHealth[role === 'host' ? 'guest' : 'host']);
+      if (gameState) {
+        const myData = gameState.entities[socket.current.id];
+        const oppId = role === 'host' ? gameState.guest : gameState.host;
+        const oppData = gameState.entities[oppId];
 
+        // Draw My Elements
+        drawAsset(myPos.current.x, myPos.current.y, "YOU", gameState.health[socket.current.id], 400, "#00f2ff", false, myPos.current.rot);
+        drawAsset(myBoxPos.current.x, myBoxPos.current.y, "BOX", myData.boxHp, 200, "#e1ff00", true);
+        drawAsset(myShieldPos.current.x, myShieldPos.current.y, "SHIELD", myData.shieldHp, 200, "#00ff88", false);
+
+        // Draw Opponent Elements (Mirrored)
+        drawAsset(oppPos.current.x, oppPos.current.y, "OPP", gameState.health[oppId], 400, "#ff3e3e", false, oppPos.current.rot);
+        drawAsset(oppBoxPos.current.x, oppBoxPos.current.y, "BOX", oppData.boxHp, 200, "#ffaa00", true);
+        drawAsset(oppShieldPos.current.x, oppShieldPos.current.y, "SHIELD", oppData.shieldHp, 200, "#ff0066", false);
+      }
+
+      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
-        ctx.fillStyle = "#00f2ff";
-        ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         
-        if (Math.abs(b.x - boxPos.current.x) < 30 && Math.abs(b.y - boxPos.current.y) < 30) {
-          socket.current.emit("take_damage", { roomId, target: 'box' });
-          myBullets.current.splice(i, 1);
-        }
-        if (Math.hypot(b.x - enemyPos.current.x, b.y - enemyPos.current.y) < 30) {
-          socket.current.emit("take_damage", { roomId, target: 'player', victimRole: role === 'host' ? 'guest' : 'host' });
-          myBullets.current.splice(i, 1);
+        // Detection against opponent's inverted assets
+        if (Math.hypot(b.x - oppBoxPos.current.x, b.y - oppBoxPos.current.y) < 30) {
+           socket.current.emit("damage_entity", { roomId, type: 'box', targetId: 'opponent' });
+           myBullets.current.splice(i, 1);
+        } else if (Math.hypot(b.x - oppShieldPos.current.x, b.y - oppShieldPos.current.y) < 30) {
+           socket.current.emit("damage_entity", { roomId, type: 'shield', targetId: 'opponent' });
+           myBullets.current.splice(i, 1);
+        } else if (Math.hypot(b.x - oppPos.current.x, b.y - oppPos.current.y) < 30) {
+           socket.current.emit("damage_entity", { roomId, type: 'player', targetId: 'opponent' });
+           myBullets.current.splice(i, 1);
         }
       });
 
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, overHealth, roomId, MID, W, H]);
+  }, [role, gameState, MID, W, H]);
 
-  // Autofire logic
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
-      const angle = myPos.current.rot;
-      const vx = Math.sin(angle) * 18;
-      const vy = -Math.cos(angle) * 18;
+      const vx = Math.sin(myPos.current.rot) * 15;
+      const vy = -Math.cos(myPos.current.rot) * 15;
       myBullets.current.push({ x: myPos.current.x, y: myPos.current.y, vx, vy });
       socket.current.emit("fire", { roomId, x: W - myPos.current.x, y: H - myPos.current.y, vx: -vx, vy: -vy });
-    }, 200);
+    }, 250);
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, roomId, W, H]);
-
-  // Countdown Logic
-  useEffect(() => {
-    if (countdown === null || countdown <= 0) return;
-    const timer = setInterval(() => setCountdown(prev => prev - 1), 1000);
-    return () => clearInterval(timer);
-  }, [countdown]);
+  }, [role, countdown, gameOver, roomId, W, H]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
-      <div className="header-dashboard">
-        <div className="stat-box">
-          <span className="name">ENEMY</span>
-          <div className="mini-hp">
-            <div className="fill red" style={{width: `${role ? (health[role === 'host' ? 'guest' : 'host'] / 400) * 100 : 100}%`}}/>
-          </div>
-        </div>
-        <div className="stat-box">
-          <span className="name">YOU</span>
-          <div className="mini-hp">
-            <div className="fill blue" style={{width: `${role ? (health[role] / 400) * 100 : 100}%`}}/>
-            <div className="fill shield" style={{width: `${role ? (overHealth[role] / 200) * 100 : 0}%`}}/>
-          </div>
-        </div>
-      </div>
       <canvas ref={canvasRef} width={W} height={H} />
-      {countdown !== null && countdown > 0 && (
-        <div className="overlay"><div className="count">{countdown}</div></div>
-      )}
-      {gameOver && (
-        <div className="overlay">
-          <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
-          <button onClick={() => navigate("/")}>EXIT</button>
-        </div>
-      )}
+      {gameOver && <div className="overlay"><h1 className={gameOver}>{gameOver.toUpperCase()}</h1><button onClick={() => navigate("/")}>EXIT</button></div>}
     </div>
   );
 }
