@@ -12,32 +12,27 @@
 }
 
 .stat-box { width: 44%; }
-.name { font-size: 0.6rem; color: #888; text-align: center; display: block; margin-bottom: 4px; font-weight: bold; }
+.name { font-size: 0.55rem; color: #888; text-align: center; display: block; margin-bottom: 4px; font-weight: bold; }
 
-.mini-hp-container { position: relative; width: 100%; }
 .mini-hp { 
-    width: 100%; height: 18px; background: #111; border-radius: 4px; 
+    width: 100%; height: 16px; background: #111; border-radius: 4px; 
     position: relative; border: 1px solid #333; overflow: hidden; 
     display: flex; align-items: center; justify-content: center;
 }
 
-.hp-label {
-    position: absolute; font-size: 0.6rem; color: #fff; font-weight: bold;
-    text-shadow: 1px 1px 2px #000; z-index: 5;
-}
+.hp-label { position: absolute; font-size: 0.55rem; color: #fff; font-weight: bold; z-index: 5; }
 
-.fill { height: 100%; position: absolute; top: 0; left: 0; transition: width 0.1s linear; }
+.fill { height: 100%; position: absolute; top: 0; left: 0; }
 .fill.blue { background: #00f2ff; box-shadow: inset 0 0 10px #00f2ff; z-index: 1; }
 .fill.red { background: #ff3e3e; box-shadow: inset 0 0 10px #ff3e3e; z-index: 1; }
-.fill.shield { background: #e1ff00; box-shadow: 0 0 10px #e1ff00; z-index: 2; opacity: 0.8; }
+.fill.shield { background: #e1ff00; z-index: 2; opacity: 0.8; }
 
 .heal-popup {
-    position: absolute; right: -5px; top: -30px; color: #4aff4a; font-weight: bold; font-size: 1rem;
-    animation: floatUp 0.8s ease-out forwards; pointer-events: none;
+    position: absolute; right: -5px; top: -30px; color: #4aff4a; font-weight: bold; font-size: 0.9rem;
+    animation: floatUp 0.8s ease-out forwards;
 }
 
 @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-30px); } }
 
 canvas { flex-grow: 1; width: 100%; background: #000; display: block; }
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
 .count { font-size: 10rem; color: #00f2ff; font-weight: bold; }
