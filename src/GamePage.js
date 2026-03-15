@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import "./GamePage.css";
@@ -37,7 +37,7 @@ export default function GamePage() {
   const enemyBullets = useRef([]);
   const sparks = useRef([]);
   const flash = useRef(0);
-  const shimmer = useRef(0); // FIXED: Initialized shimmer ref
+  const shimmer = useRef(0); 
   
   const chargeProgress = useRef(0);
   const lastTap = useRef(0);
@@ -46,7 +46,6 @@ export default function GamePage() {
   const explosions = useRef([]);
   const screenShake = useRef(0);
 
-  // Scoped for both JSX and useEffect
   const opp = role === 'host' ? 'guest' : 'host';
 
   useEffect(() => {
@@ -89,6 +88,18 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
+  // FIXED: launchGrenade wrapped in useCallback to satisfy ESLint
+  const launchGrenade = useCallback(() => {
+    const range = (H / 2) * 0.55;
+    const targetX = myShooter.current.x + Math.sin(myShooter.current.rot) * range;
+    const targetY = myShooter.current.y - Math.cos(myShooter.current.rot) * range;
+    const g = { x: myShooter.current.x, y: myShooter.current.y, tx: targetX, ty: targetY, t: 0 };
+    grenadesArr.current.push(g);
+    socket.current.emit("launch_grenade", { roomId, x: W - g.x, y: H - g.y, tx: W - g.tx, ty: H - g.ty });
+    isCharging.current = false;
+    chargeProgress.current = 0;
+  }, [roomId, H, W]);
+
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -103,23 +114,12 @@ export default function GamePage() {
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
     }, 120); 
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, roomId]);
+  }, [countdown, gameOver, role, roomId, W, H]);
 
-  const createSparks = (x, y, color) => {
+  const createSparks = (x, y) => {
     for(let i=0; i<6; i++) {
-      sparks.current.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1, color });
+      sparks.current.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1 });
     }
-  };
-
-  const launchGrenade = () => {
-    const range = (H / 2) * 0.55;
-    const targetX = myShooter.current.x + Math.sin(myShooter.current.rot) * range;
-    const targetY = myShooter.current.y - Math.cos(myShooter.current.rot) * range;
-    const g = { x: myShooter.current.x, y: myShooter.current.y, tx: targetX, ty: targetY, t: 0 };
-    grenadesArr.current.push(g);
-    socket.current.emit("launch_grenade", { roomId, x: W - g.x, y: H - g.y, tx: W - g.tx, ty: H - g.ty });
-    isCharging.current = false;
-    chargeProgress.current = 0;
   };
 
   const handleTouch = (e) => {
@@ -188,7 +188,6 @@ export default function GamePage() {
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, (val/max)*40, 4);
       };
 
-      // Draw Units
       if (boxHealth[role] > 0) {
           ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x - 25, myBox.current.y - 25, 50, 50);
           drawMiniBar(myBox.current.x, myBox.current.y, boxHealth[role], 200, "#00f2ff");
@@ -207,16 +206,13 @@ export default function GamePage() {
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        
         const dS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
         const a = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
-        
         if (shieldHealth[opp] > 0 && dS > 55 && dS < 75 && Math.abs(a - Math.PI/2) < 0.9) {
-            createSparks(b.x, b.y, "#fff");
+            createSparks(b.x, b.y);
             socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp });
             myBullets.current.splice(i, 1);
         } else if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 28 && Math.abs(b.y - enemyBox.current.y) < 28) {
@@ -231,23 +227,18 @@ export default function GamePage() {
       enemyBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        
         const dS = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
         const a = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
-        
         if (shieldHealth[role] > 0 && dS > 55 && dS < 75 && Math.abs(a + Math.PI/2) < 0.9) {
-            createSparks(b.x, b.y, "#fff");
+            createSparks(b.x, b.y);
             socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: role });
             enemyBullets.current.splice(i, 1);
         } else if (Math.abs(b.x - myShooter.current.x) < 22 && Math.abs(b.y - myShooter.current.y) < 35) {
             socket.current.emit("take_damage", { roomId, target: 'player', victimRole: role });
             enemyBullets.current.splice(i, 1);
-        } else if (boxHealth[role] > 0 && Math.abs(b.x - myBox.current.x) < 28 && Math.abs(b.y - myBox.current.y) < 28) {
-            enemyBullets.current.splice(i, 1);
         }
       });
 
-      // Explosion Render
       grenadesArr.current.forEach((g, i) => {
         g.t += 0.04;
         const cx = g.x + (g.tx - g.x) * g.t;
@@ -296,7 +287,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, roomId, boxHealth, shieldHealth, opp]);
+  }, [role, roomId, boxHealth, shieldHealth, opp, launchGrenade, W, H]); // launchGrenade added here
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
