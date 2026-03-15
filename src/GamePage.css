@@ -19,38 +19,22 @@
 .fill { height: 100%; position: absolute; top: 0; left: 0; transition: width 0.15s ease-out; }
 .fill.blue { background: #00f2ff; box-shadow: 0 0 10px #00f2ff; z-index: 1; }
 .fill.red { background: #ff3e3e; box-shadow: 0 0 10px #ff3e3e; z-index: 1; }
+.fill.shield { background: #e1ff00; box-shadow: 0 0 15px #e1ff00; z-index: 2; }
 
-/* The Extra Health Layer */
-.fill.shield {
-    background: #e1ff00;
-    box-shadow: 0 0 15px #e1ff00;
-    z-index: 2; /* Sits on top of the blue/red bar */
+.heal-popup {
+    position: absolute; right: 0; top: -35px;
+    color: #4aff4a; font-weight: bold; font-size: 1.1rem;
+    animation: floatUp 0.6s ease-out forwards;
 }
 
-/* Grenade Charge Loader */
-.charge-bar {
-    position: fixed;
-    bottom: 50px;
-    width: 150px;
-    height: 8px;
-    background: #333;
-    border: 1px solid #ff0000;
-    overflow: hidden;
-}
-.charge-bar::after {
-    content: '';
-    display: block;
-    height: 100%;
-    background: #ff0000;
-    animation: chargeProgress 2s linear forwards;
-}
-
-@keyframes chargeProgress {
-    0% { width: 0; }
-    100% { width: 100%; }
+@keyframes floatUp {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-30px); }
 }
 
 canvas { flex-grow: 1; width: 100%; background: radial-gradient(circle, #111 0%, #000 100%); display: block; }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
 .count { font-size: 10rem; color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
+h1.win { color: #00f2ff; } h1.lose { color: #ff3e3e; }
+button { background: #00f2ff; border: none; padding: 10px 30px; font-family: 'Orbitron'; font-weight: bold; cursor: pointer; }
