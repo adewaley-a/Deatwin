@@ -21,16 +21,19 @@ export default function GamePage() {
   const [showHeal, setShowHeal] = useState(false);
 
   const W = 400, H = 700; 
-  // Randomized Start Positions
-  const myShooter = useRef({ x: 50 + Math.random() * 300, y: 620, rot: 0 });
-  const myShield = useRef({ x: 50 + Math.random() * 300, y: 530 });
-  const myBox = useRef({ x: 50 + Math.random() * 300, y: 660 });
-  
-  const enemyShooter = useRef({ x: 200, y: 80, rot: 0 });
-  const enemyShield = useRef({ x: 200, y: 170 });
-  const enemyBox = useRef({ x: 200, y: 40 });
 
-  const activeTouches = useRef(new Map()); // Supports Multi-Touch
+  // TACTICAL STARTING POSITIONS:
+  // Your base (Box + Shield) on the LEFT, Shooter on the RIGHT.
+  // Because we mirror for the opponent, their base will be on your RIGHT.
+  const myBox = useRef({ x: 80, y: 650 });
+  const myShield = useRef({ x: 80, y: 580 });
+  const myShooter = useRef({ x: 300, y: 630, rot: 0 });
+  
+  const enemyBox = useRef({ x: 320, y: 50 });
+  const enemyShield = useRef({ x: 320, y: 120 });
+  const enemyShooter = useRef({ x: 100, y: 70, rot: 0 });
+
+  const activeTouches = useRef(new Map());
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
   const sparks = useRef([]);
@@ -74,22 +77,34 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Higher Bullet Rate
+  // Bullet Logic with correct origin and rate
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
       const vx = Math.sin(myShooter.current.rot) * 18;
       const vy = -Math.cos(myShooter.current.rot) * 18;
-      const b = { x: myShooter.current.x, y: myShooter.current.y - 40, vx, vy };
+      
+      // Calculate nose of the triangle for bullet spawn
+      const tipX = myShooter.current.x + Math.sin(myShooter.current.rot) * 30;
+      const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
+
+      const b = { x: tipX, y: tipY, vx, vy };
       myBullets.current.push(b);
-      socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy });
+      
+      socket.current.emit("fire", { 
+        roomId, 
+        x: W - b.x, 
+        y: H - b.y, 
+        vx: -vx, 
+        vy: -vy 
+      });
     }, 120); 
     return () => clearInterval(fireInt);
   }, [countdown, gameOver, role, roomId]);
 
   const createSparks = (x, y, color) => {
     for(let i=0; i<6; i++) {
-      sparks.current.push({ x, y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, alpha: 1, color });
+      sparks.current.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1, color });
     }
   };
 
@@ -103,7 +118,7 @@ export default function GamePage() {
 
       if (e.type === "touchstart") {
         let id = null;
-        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 50)) < 40) id = "wheel";
+        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 50)) < 45) id = "wheel";
         else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 45) id = "shooter";
         else if (Math.hypot(tx - myShield.current.x, ty - myShield.current.y) < 65 && shieldHealth[role] > 0) id = "shield";
         else if (Math.hypot(tx - myBox.current.x, ty - myBox.current.y) < 45 && boxHealth[role] > 0) id = "box";
@@ -116,11 +131,11 @@ export default function GamePage() {
         if (!draggingId) return;
 
         if (draggingId === "wheel") {
-          myShooter.current.rot = Math.max(-1.22, Math.min(1.22, (tx - myShooter.current.x) / 40)); 
+          myShooter.current.rot = Math.max(-1.22, Math.min(1.22, (tx - myShooter.current.x) / 45)); 
         } else {
           const target = draggingId === "shooter" ? myShooter : draggingId === "shield" ? myShield : myBox;
           target.current.x = Math.max(30, Math.min(W - 30, tx));
-          target.current.y = Math.max(H / 2 + 45, Math.min(H - 35, ty));
+          target.current.y = Math.max(H / 2 + 50, Math.min(H - 40, ty));
         }
 
         socket.current.emit("move_all", { 
@@ -145,8 +160,8 @@ export default function GamePage() {
       shimmer.current += 0.05;
       const opp = role === 'host' ? 'guest' : 'host';
 
-      // Demarcation
-      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      // Middle Line
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
       ctx.setLineDash([10, 5]);
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
       ctx.setLineDash([]);
@@ -156,11 +171,11 @@ export default function GamePage() {
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, (val/max)*40, 4);
       };
 
-      // Draw Boxes
+      // Draw Boxes + Shimmer
       const drawBox = (pos, color, hp) => {
         if (hp <= 0) return;
-        ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = color; ctx.fillStyle = color;
-        ctx.fillRect(pos.x - 25, pos.y - 25, 50, 50); ctx.restore();
+        ctx.save(); ctx.shadowBlur = 15 + Math.sin(shimmer.current)*5; ctx.shadowColor = color;
+        ctx.fillStyle = color; ctx.fillRect(pos.x - 25, pos.y - 25, 50, 50); ctx.restore();
         drawMiniBar(pos.x, pos.y, hp, 200, color);
       };
       drawBox(myBox.current, "#00f2ff", boxHealth[role]);
@@ -177,19 +192,19 @@ export default function GamePage() {
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Bullet Physics & Collision
+      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         
         // Hit Enemy Box
         if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 28 && Math.abs(b.y - enemyBox.current.y) < 28) {
-          createSparks(b.x, b.y, "#ffeb3b");
+          createSparks(b.x, b.y, "#fff");
           socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp });
           myBullets.current.splice(i, 1);
         }
-        // Hit Enemy Shooter
-        else if (Math.abs(b.x - enemyShooter.current.x) < 20 && Math.abs(b.y - enemyShooter.current.y) < 35) {
+        // Hit Enemy Player
+        else if (Math.abs(b.x - enemyShooter.current.x) < 22 && Math.abs(b.y - enemyShooter.current.y) < 35) {
             createSparks(b.x, b.y, "#ff3e3e");
             socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp });
             myBullets.current.splice(i, 1);
@@ -201,28 +216,25 @@ export default function GamePage() {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         
-        // Hit My Shield
         const dist = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
         const angle = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
-        if (shieldHealth[role] > 0 && dist > 55 && dist < 70 && Math.abs(angle + Math.PI/2) < 0.8) {
+        if (shieldHealth[role] > 0 && dist > 55 && dist < 75 && Math.abs(angle + Math.PI/2) < 0.9) {
           createSparks(b.x, b.y, "#00f2ff");
           socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: role });
           enemyBullets.current.splice(i, 1);
         }
-        // Hit My Shooter
-        else if (Math.abs(b.x - myShooter.current.x) < 20 && Math.abs(b.y - myShooter.current.y) < 35) {
+        else if (Math.abs(b.x - myShooter.current.x) < 22 && Math.abs(b.y - myShooter.current.y) < 35) {
             createSparks(b.x, b.y, "#00f2ff");
             socket.current.emit("take_damage", { roomId, target: 'player', victimRole: role });
             enemyBullets.current.splice(i, 1);
         }
-        // Hit My Box (Blocker)
         else if (boxHealth[role] > 0 && Math.abs(b.x - myBox.current.x) < 28 && Math.abs(b.y - myBox.current.y) < 28) {
-            createSparks(b.x, b.y, "#ffeb3b");
-            enemyBullets.current.splice(i, 1);
+            createSparks(b.x, b.y, "#fff");
+            enemyBullets.current.splice(i, 1); // Box blocks for you
         }
       });
 
-      // Sparks
+      // Particle update
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.alpha -= 0.05;
         ctx.fillStyle = s.color; ctx.globalAlpha = Math.max(0, s.alpha);
@@ -231,16 +243,16 @@ export default function GamePage() {
       });
       ctx.globalAlpha = 1.0;
 
-      // Draw Shooters
+      // Draw Shooters + Steering Wheel
       const drawPlayerGroup = (pos, color, isEnemy) => {
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.rotate(pos.rot || 0);
         ctx.fillStyle = color; ctx.beginPath();
         if (isEnemy) { ctx.moveTo(0, 30); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); }
         else { ctx.moveTo(0, -30); ctx.lineTo(-15, 10); ctx.lineTo(15, 10); }
         ctx.fill(); ctx.restore();
-        // Wheel
+        // Interactive Steering Circle
         ctx.strokeStyle = color; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -50 : 50), 18, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -50 : 50), 20, 0, Math.PI*2); ctx.stroke();
       };
       drawPlayerGroup(myShooter.current, "#00f2ff", false);
       drawPlayerGroup(enemyShooter.current, "#ff3e3e", true);
