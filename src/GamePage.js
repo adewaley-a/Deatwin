@@ -23,7 +23,7 @@ export default function GamePage() {
 
   const W = 400, H = 700; 
 
-  // TACTICAL GROUPING
+  // Player Element Refs
   const myBox = useRef({ x: 60, y: 650 });
   const myShield = useRef({ x: 60, y: 580 });
   const myShooter = useRef({ x: 130, y: 630, rot: 0 });
@@ -37,6 +37,7 @@ export default function GamePage() {
   const enemyBullets = useRef([]);
   const sparks = useRef([]);
   const flash = useRef(0);
+  const shimmer = useRef(0); // FIXED: Initialized shimmer ref
   
   const chargeProgress = useRef(0);
   const lastTap = useRef(0);
@@ -45,7 +46,7 @@ export default function GamePage() {
   const explosions = useRef([]);
   const screenShake = useRef(0);
 
-  // DEFINE 'opp' AT COMPONENT LEVEL SO JSX CAN SEE IT
+  // Scoped for both JSX and useEffect
   const opp = role === 'host' ? 'guest' : 'host';
 
   useEffect(() => {
@@ -187,7 +188,7 @@ export default function GamePage() {
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, (val/max)*40, 4);
       };
 
-      // Draw Elements
+      // Draw Units
       if (boxHealth[role] > 0) {
           ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x - 25, myBox.current.y - 25, 50, 50);
           drawMiniBar(myBox.current.x, myBox.current.y, boxHealth[role], 200, "#00f2ff");
@@ -206,15 +207,15 @@ export default function GamePage() {
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Bullet Absorption Logic
+      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         
-        const distShield = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
-        const ang = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
+        const dS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
+        const a = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
         
-        if (shieldHealth[opp] > 0 && distShield > 55 && distShield < 75 && Math.abs(ang - Math.PI/2) < 0.9) {
+        if (shieldHealth[opp] > 0 && dS > 55 && dS < 75 && Math.abs(a - Math.PI/2) < 0.9) {
             createSparks(b.x, b.y, "#fff");
             socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp });
             myBullets.current.splice(i, 1);
@@ -231,10 +232,10 @@ export default function GamePage() {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         
-        const distShield = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
-        const ang = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
+        const dS = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
+        const a = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
         
-        if (shieldHealth[role] > 0 && distShield > 55 && distShield < 75 && Math.abs(ang + Math.PI/2) < 0.9) {
+        if (shieldHealth[role] > 0 && dS > 55 && dS < 75 && Math.abs(a + Math.PI/2) < 0.9) {
             createSparks(b.x, b.y, "#fff");
             socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: role });
             enemyBullets.current.splice(i, 1);
@@ -246,7 +247,7 @@ export default function GamePage() {
         }
       });
 
-      // Grenade / Explosion Loop
+      // Explosion Render
       grenadesArr.current.forEach((g, i) => {
         g.t += 0.04;
         const cx = g.x + (g.tx - g.x) * g.t;
