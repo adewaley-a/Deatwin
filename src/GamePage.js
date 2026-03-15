@@ -21,12 +21,10 @@ export default function GamePage() {
   const [showHeal, setShowHeal] = useState(false);
 
   const W = 400, H = 700; 
-  // Initial positions for local player
   const myShooter = useRef({ x: 200, y: 600, rot: 0 });
   const myShield = useRef({ x: 200, y: 500 });
   const myBox = useRef({ x: 200, y: 650 });
   
-  // Initial positions for enemy (will be updated via socket)
   const enemyShooter = useRef({ x: 200, y: 100, rot: 0 });
   const enemyShield = useRef({ x: 200, y: 200 });
   const enemyBox = useRef({ x: 200, y: 50 });
@@ -34,7 +32,7 @@ export default function GamePage() {
   const dragging = useRef(null);
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const sparks = useRef([]);
+  const sparks = useRef([]); // Now utilized in the render loop
   const shimmer = useRef(0);
 
   useEffect(() => {
@@ -43,7 +41,6 @@ export default function GamePage() {
     socket.current.on("assign_role", (data) => setRole(data.role));
     socket.current.on("start_countdown", () => setCountdown(3));
     
-    // Sync all opponent movements including rotation
     socket.current.on("opp_move_all", (data) => {
       enemyShooter.current = data.shooter;
       enemyShield.current = data.shield;
@@ -76,7 +73,6 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Shooting loop using synchronized rotation
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -84,11 +80,16 @@ export default function GamePage() {
       const vy = -Math.cos(myShooter.current.rot) * 18;
       const b = { x: myShooter.current.x, y: myShooter.current.y - 40, vx, vy };
       myBullets.current.push(b);
-      // Emit bullet with mirrored velocity and position
       socket.current.emit("fire", { roomId, x: W - b.x, y: H - b.y, vx: -vx, vy: -vy });
     }, 200); 
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, roomId]);
+  }, [countdown, gameOver, role, roomId, W, H]);
+
+  const createSparks = (x, y, color) => {
+    for(let i=0; i<8; i++) {
+      sparks.current.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1, color });
+    }
+  };
 
   const handleTouch = (e) => {
     if (!role || gameOver || countdown > 0) return;
@@ -98,7 +99,6 @@ export default function GamePage() {
     const ty = (t.clientY - rect.top) * (H / rect.height);
 
     if (e.type === "touchstart") {
-      // Check for Steering Wheel hit first (it has offset)
       if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 50)) < 35) dragging.current = "wheel";
       else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 40) dragging.current = "shooter";
       else if (Math.hypot(tx - myShield.current.x, ty - myShield.current.y) < 60 && shieldHealth[role] > 0) dragging.current = "shield";
@@ -108,16 +108,13 @@ export default function GamePage() {
     if (e.type === "touchmove" && dragging.current) {
       if (dragging.current === "wheel") {
           const dx = tx - myShooter.current.x;
-          // Map horizontal drag distance to ~70 degrees (1.22 radians)
           myShooter.current.rot = Math.max(-1.22, Math.min(1.22, dx / 40)); 
       } else {
           const target = dragging.current === "shooter" ? myShooter : dragging.current === "shield" ? myShield : myBox;
           target.current.x = Math.max(30, Math.min(W - 30, tx));
-          // Strict vertical boundary at H/2
           target.current.y = Math.max(H / 2 + 40, Math.min(H - 40, ty));
       }
 
-      // Sync positions AND rotation to opponent
       socket.current.emit("move_all", { 
         roomId, 
         shooter: { x: W - myShooter.current.x, y: H - myShooter.current.y, rot: -myShooter.current.rot },
@@ -136,7 +133,6 @@ export default function GamePage() {
       ctx.clearRect(0, 0, W, H);
       shimmer.current += 0.05;
 
-      // Draw Midpoint line
       ctx.strokeStyle = "rgba(255,255,255,0.2)";
       ctx.setLineDash([10, 5]);
       ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
@@ -149,7 +145,6 @@ export default function GamePage() {
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, (val/max)*40, 5);
       };
 
-      // Draw Boxes with shimmer
       const drawBox = (pos, color, hp) => {
         if (hp <= 0) return;
         ctx.save();
@@ -163,7 +158,6 @@ export default function GamePage() {
       drawBox(myBox.current, "#00f2ff", boxHealth[role]);
       drawBox(enemyBox.current, "#ff3e3e", boxHealth[opp]);
 
-      // Draw Shields
       const drawShield = (pos, color, hp, isEnemy) => {
         if (hp <= 0) return;
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath();
@@ -175,11 +169,11 @@ export default function GamePage() {
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Bullet Physics
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 30 && Math.abs(b.y - enemyBox.current.y) < 30) {
+          createSparks(b.x, b.y, "#ffeb3b");
           socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp });
           myBullets.current.splice(i, 1);
         }
@@ -192,12 +186,21 @@ export default function GamePage() {
         const dist = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
         const angle = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
         if (shieldHealth[role] > 0 && dist > 55 && dist < 70 && Math.abs(angle + Math.PI/2) < 0.8) {
+          createSparks(b.x, b.y, "#00f2ff");
           socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: role });
           enemyBullets.current.splice(i, 1);
         }
       });
 
-      // Draw Shooters & Steering
+      // Sparks rendering loop (This solves the 'sparks' is unused error)
+      sparks.current.forEach((s, i) => {
+        s.x += s.vx; s.y += s.vy; s.alpha -= 0.04;
+        ctx.fillStyle = s.color; ctx.globalAlpha = s.alpha;
+        ctx.fillRect(s.x, s.y, 3, 3);
+        if (s.alpha <= 0) sparks.current.splice(i, 1);
+      });
+      ctx.globalAlpha = 1.0;
+
       const drawPlayerGroup = (pos, color, isEnemy) => {
         ctx.save(); ctx.translate(pos.x, pos.y);
         ctx.rotate(pos.rot || 0);
@@ -206,10 +209,9 @@ export default function GamePage() {
         else { ctx.moveTo(0, -30); ctx.lineTo(-15, 10); ctx.lineTo(15, 10); }
         ctx.fill(); ctx.restore();
 
-        // Steering Wheel (Static relative to Shooter, but interactive)
         ctx.strokeStyle = color; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -50 : 50), 18, 0, Math.PI*2); ctx.stroke();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.3; ctx.fill(); ctx.globalAlpha = 1.0;
+        ctx.fillStyle = color; ctx.globalAlpha = 0.2; ctx.fill(); ctx.globalAlpha = 1.0;
       };
       drawPlayerGroup(myShooter.current, "#00f2ff", false);
       drawPlayerGroup(enemyShooter.current, "#ff3e3e", true);
@@ -217,7 +219,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, roomId, boxHealth, shieldHealth]);
+  }, [role, roomId, boxHealth, shieldHealth, W, H]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
