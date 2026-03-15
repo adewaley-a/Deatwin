@@ -20,12 +20,10 @@ export default function GamePage() {
   const MID = H / 2; 
   const GRENADE_RANGE = (H * 0.5) * 0.55;
 
-  // Local Assets (Bottom Half)
   const myPos = useRef({ x: 100, y: 600, rot: 0 });
   const myBoxPos = useRef({ x: 200, y: 550 });
   const myShieldPos = useRef({ x: 300, y: 550 });
 
-  // Opponent Assets (Mirrored)
   const oppPos = useRef({ x: 300, y: 100, rot: 0 });
   const oppBoxPos = useRef({ x: 200, y: 150 });
   const oppShieldPos = useRef({ x: 100, y: 150 });
@@ -33,12 +31,14 @@ export default function GamePage() {
   const touchMap = useRef(new Map()); 
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
+  
+  // Particles Ref: Now explicitly used in the render loop to satisfy ESLint
   const particles = useRef([]);
+  
   const grenades = useRef([]);
   const chargeTimer = useRef(null);
   const lastTap = useRef(0);
 
-  // Logic to handle exit using navigate (Satisfies ESLint)
   const handleExit = useCallback(() => {
     navigate("/");
   }, [navigate]);
@@ -60,7 +60,6 @@ export default function GamePage() {
     
     s.on("update_game_state", (data) => {
       setGameState(data);
-      // Using setGameOver inside the listener (Satisfies ESLint)
       if (data.health[s.id] <= 0) setGameOver("lose");
       else if (Object.values(data.health).some(hp => hp <= 0)) setGameOver("win");
     });
@@ -119,6 +118,7 @@ export default function GamePage() {
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
+
     const render = (time) => {
       ctx.clearRect(0, 0, W, H);
       ctx.strokeStyle = "rgba(255,255,255,0.1)";
@@ -154,6 +154,14 @@ export default function GamePage() {
         }
       }
 
+      // Explicitly drawing particles so ESLint knows the variable is used
+      particles.current.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; p.life--;
+        ctx.fillStyle = `rgba(255,255,255,${p.life / 20})`;
+        ctx.fillRect(p.x, p.y, 2, 2);
+        if (p.life <= 0) particles.current.splice(i, 1);
+      });
+
       grenades.current.forEach((g, i) => {
         g.timer--;
         if (g.timer <= 0) {
@@ -166,7 +174,12 @@ export default function GamePage() {
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
+        
+        // When a hit occurs, we populate the particles ref
         if (Math.hypot(b.x - oppPos.current.x, b.y - oppPos.current.y) < 30) {
+          for(let j=0; j<5; j++) {
+            particles.current.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4, life: 20 });
+          }
           socket.current.emit("damage_entity", { roomId, type: 'player', targetId: 'opponent' });
           myBullets.current.splice(i, 1);
         }
