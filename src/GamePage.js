@@ -23,6 +23,7 @@ export default function GamePage() {
 
   const W = 400, H = 700; 
 
+  // TACTICAL GROUPING
   const myBox = useRef({ x: 60, y: 650 });
   const myShield = useRef({ x: 60, y: 580 });
   const myShooter = useRef({ x: 130, y: 630, rot: 0 });
@@ -37,13 +38,15 @@ export default function GamePage() {
   const sparks = useRef([]);
   const flash = useRef(0);
   
-  // Grenade & Shake States
   const chargeProgress = useRef(0);
   const lastTap = useRef(0);
   const isCharging = useRef(false);
   const grenadesArr = useRef([]);
   const explosions = useRef([]);
   const screenShake = useRef(0);
+
+  // DEFINE 'opp' AT COMPONENT LEVEL SO JSX CAN SEE IT
+  const opp = role === 'host' ? 'guest' : 'host';
 
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
@@ -85,7 +88,6 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Firing Loop
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -96,11 +98,28 @@ export default function GamePage() {
       const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
 
       myBullets.current.push({ x: tipX, y: tipY, vx, vy });
-      flash.current = 5; // Muzzle Flash Frames
+      flash.current = 5; 
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
     }, 120); 
     return () => clearInterval(fireInt);
   }, [countdown, gameOver, role, roomId]);
+
+  const createSparks = (x, y, color) => {
+    for(let i=0; i<6; i++) {
+      sparks.current.push({ x, y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1, color });
+    }
+  };
+
+  const launchGrenade = () => {
+    const range = (H / 2) * 0.55;
+    const targetX = myShooter.current.x + Math.sin(myShooter.current.rot) * range;
+    const targetY = myShooter.current.y - Math.cos(myShooter.current.rot) * range;
+    const g = { x: myShooter.current.x, y: myShooter.current.y, tx: targetX, ty: targetY, t: 0 };
+    grenadesArr.current.push(g);
+    socket.current.emit("launch_grenade", { roomId, x: W - g.x, y: H - g.y, tx: W - g.tx, ty: H - g.ty });
+    isCharging.current = false;
+    chargeProgress.current = 0;
+  };
 
   const handleTouch = (e) => {
     if (!role || gameOver || countdown > 0) return;
@@ -113,11 +132,9 @@ export default function GamePage() {
 
       if (e.type === "touchstart") {
         let id = null;
-        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 50)) < 45) {
-            id = "wheel";
-        } else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 45) {
+        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 50)) < 45) id = "wheel";
+        else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 45) {
             id = "shooter";
-            // Grenade Logic
             if (now - lastTap.current < 300 && grenades[role] > 0) {
                 isCharging.current = true;
                 chargeProgress.current = 0;
@@ -153,41 +170,24 @@ export default function GamePage() {
     });
   };
 
-  const launchGrenade = () => {
-    const range = (H / 2) * 0.55;
-    const targetX = myShooter.current.x + Math.sin(myShooter.current.rot) * range;
-    const targetY = myShooter.current.y - Math.cos(myShooter.current.rot) * range;
-    const g = { x: myShooter.current.x, y: myShooter.current.y, tx: targetX, ty: targetY, t: 0 };
-    grenadesArr.current.push(g);
-    socket.current.emit("launch_grenade", { roomId, x: W - g.x, y: H - g.y, tx: W - g.tx, ty: H - g.ty });
-    isCharging.current = false;
-    chargeProgress.current = 0;
-  };
-
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
     const render = () => {
-      // Screen Shake
       ctx.save();
       if (screenShake.current > 0) {
           ctx.translate((Math.random()-0.5)*screenShake.current, (Math.random()-0.5)*screenShake.current);
           screenShake.current *= 0.9;
       }
-
       ctx.clearRect(0, 0, W, H);
-      const opp = role === 'host' ? 'guest' : 'host';
-
-      // Middle Line
-      ctx.strokeStyle = "rgba(255,255,255,0.1)";
-      ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke(); ctx.setLineDash([]);
+      shimmer.current += 0.05;
 
       const drawMiniBar = (x, y, val, max, color) => {
         ctx.fillStyle = "#111"; ctx.fillRect(x - 20, y - 40, 40, 4);
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, (val/max)*40, 4);
       };
 
-      // Draw Units
+      // Draw Elements
       if (boxHealth[role] > 0) {
           ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x - 25, myBox.current.y - 25, 50, 50);
           drawMiniBar(myBox.current.x, myBox.current.y, boxHealth[role], 200, "#00f2ff");
@@ -197,7 +197,6 @@ export default function GamePage() {
           drawMiniBar(enemyBox.current.x, enemyBox.current.y, boxHealth[opp], 200, "#ff3e3e");
       }
 
-      // Shields
       const drawShield = (pos, color, hp, isEnemy) => {
         if (hp <= 0) return;
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath();
@@ -207,15 +206,16 @@ export default function GamePage() {
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Bullet Physics with Absorption
+      // Bullet Absorption Logic
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         
-        const distToEnemyShield = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
+        const distShield = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
         const ang = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
         
-        if (shieldHealth[opp] > 0 && distToEnemyShield > 55 && distToEnemyShield < 75 && Math.abs(ang - Math.PI/2) < 0.9) {
+        if (shieldHealth[opp] > 0 && distShield > 55 && distShield < 75 && Math.abs(ang - Math.PI/2) < 0.9) {
+            createSparks(b.x, b.y, "#fff");
             socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp });
             myBullets.current.splice(i, 1);
         } else if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 28 && Math.abs(b.y - enemyBox.current.y) < 28) {
@@ -225,17 +225,17 @@ export default function GamePage() {
             socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp });
             myBullets.current.splice(i, 1);
         }
-        if (b.y < -50 || b.y > H + 50) myBullets.current.splice(i, 1);
       });
 
       enemyBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         
-        const distToMyShield = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
+        const distShield = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
         const ang = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
         
-        if (shieldHealth[role] > 0 && distToMyShield > 55 && distToMyShield < 75 && Math.abs(ang + Math.PI/2) < 0.9) {
+        if (shieldHealth[role] > 0 && distShield > 55 && distShield < 75 && Math.abs(ang + Math.PI/2) < 0.9) {
+            createSparks(b.x, b.y, "#fff");
             socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: role });
             enemyBullets.current.splice(i, 1);
         } else if (Math.abs(b.x - myShooter.current.x) < 22 && Math.abs(b.y - myShooter.current.y) < 35) {
@@ -246,50 +246,46 @@ export default function GamePage() {
         }
       });
 
-      // Grenade Mechanics
+      // Grenade / Explosion Loop
       grenadesArr.current.forEach((g, i) => {
         g.t += 0.04;
-        const curX = g.x + (g.tx - g.x) * g.t;
-        const curY = g.y + (g.ty - g.y) * g.t;
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(curX, curY, 8, 0, Math.PI*2); ctx.fill();
+        const cx = g.x + (g.tx - g.x) * g.t;
+        const cy = g.y + (g.ty - g.y) * g.t;
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI*2); ctx.fill();
         if (g.t >= 1) {
             explosions.current.push({ x: g.tx, y: g.ty, r: 0, alpha: 1 });
-            screenShake.current = 15;
+            screenShake.current = 20;
             if (role) socket.current.emit("grenade_burst", { roomId, x: g.tx, y: g.ty });
             grenadesArr.current.splice(i, 1);
         }
       });
 
       explosions.current.forEach((ex, i) => {
-        ex.r += 6; ex.alpha -= 0.02;
+        ex.r += 7; ex.alpha -= 0.02;
         ctx.strokeStyle = `rgba(255, 255, 255, ${ex.alpha})`;
-        ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI*2); ctx.stroke();
+        ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI*2); ctx.stroke();
         if (ex.alpha <= 0) explosions.current.splice(i, 1);
       });
 
-      // Shooter Muzzle Flash & Charging
       const drawShooter = (pos, color, isEnemy) => {
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.rotate(pos.rot || 0);
         ctx.fillStyle = color; ctx.beginPath();
         if (isEnemy) { ctx.moveTo(0, 30); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); }
         else { 
             ctx.moveTo(0, -30); ctx.lineTo(-15, 10); ctx.lineTo(15, 10); 
-            // Muzzle Flash
             if (flash.current > 0) {
                 ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, -35, flash.current * 3, 0, Math.PI*2); ctx.fill();
                 flash.current--;
             }
-            // Charge UI
             if (isCharging.current) {
-                chargeProgress.current += 1/120; // 2 seconds
-                ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath();
-                ctx.arc(0, 0, 50, -Math.PI/2, -Math.PI/2 + (chargeProgress.current * Math.PI * 2));
+                chargeProgress.current += 1/120;
+                ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.beginPath();
+                ctx.arc(0, 0, 55, -Math.PI/2, -Math.PI/2 + (chargeProgress.current * Math.PI * 2));
                 ctx.stroke();
                 if (chargeProgress.current >= 1) launchGrenade();
             }
         }
-        ctx.fillStyle = color; ctx.fill(); ctx.restore();
-        // Steering
+        ctx.fill(); ctx.restore();
         ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -50 : 50), 20, 0, Math.PI*2); ctx.stroke();
       };
       drawShooter(myShooter.current, "#00f2ff", false);
@@ -299,18 +295,27 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, roomId, boxHealth, shieldHealth, grenades]);
+  }, [role, roomId, boxHealth, shieldHealth, opp]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
           <span className="name">ENEMY [G: {grenades[opp]}]</span>
-          <div className="mini-hp"><div className="fill red" style={{width: `${(health[opp]/400)*100}%`}}/><div className="fill shield" style={{width: `${(overHealth[opp]/200)*100}%`}}/><span className="hp-label">{health[opp]} HP</span></div>
+          <div className="mini-hp">
+            <div className="fill red" style={{width: `${(health[opp]/400)*100}%`}}/>
+            <div className="fill shield" style={{width: `${(overHealth[opp]/200)*100}%`}}/>
+            <span className="hp-label">{health[opp]} HP {overHealth[opp] > 0 && `(+${overHealth[opp]})`}</span>
+          </div>
         </div>
         <div className="stat-box">
           <span className="name">YOU [G: {grenades[role]}]</span>
-          <div className="mini-hp"><div className="fill blue" style={{width: `${(health[role]/400)*100}%`}}/><div className="fill shield" style={{width: `${(overHealth[role]/200)*100}%`}}/><span className="hp-label">{health[role]} HP</span>{showHeal && <div className="heal-popup">+5 HP</div>}</div>
+          <div className="mini-hp">
+            <div className="fill blue" style={{width: `${(health[role]/400)*100}%`}}/>
+            <div className="fill shield" style={{width: `${(overHealth[role]/200)*100}%`}}/>
+            <span className="hp-label">{health[role]} HP {overHealth[role] > 0 && `(+${overHealth[role]})`}</span>
+            {showHeal && <div className="heal-popup">+5 HP</div>}
+          </div>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
