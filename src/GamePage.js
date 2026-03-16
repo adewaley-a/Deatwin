@@ -36,7 +36,6 @@ export default function GamePage() {
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
   const activeGrenades = useRef([]);
-  const sparks = useRef([]); 
   const activeTouches = useRef(new Map());
 
   const lastTapTime = useRef(0);
@@ -102,7 +101,7 @@ export default function GamePage() {
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
-  }, [roomId, role]);
+  }, [roomId, role]); // roomId added to dependency array
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
