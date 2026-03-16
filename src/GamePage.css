@@ -1,41 +1,188 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
 .game-container {
-    width: 100vw; height: 100vh; background: #000;
-    display: flex; flex-direction: column; align-items: center;
-    overflow: hidden; touch-action: none; font-family: 'Orbitron', sans-serif;
-}
-
-.header-dashboard {
-    width: 100%; padding: 10px 0; background: #080808;
-    display: flex; justify-content: space-around; border-bottom: 2px solid #222;
-}
-
-.stat-box { width: 44%; }
-.name { font-size: 0.55rem; color: #888; text-align: center; display: block; margin-bottom: 4px; font-weight: bold; }
-
-.mini-hp { 
-    width: 100%; height: 18px; background: #111; border-radius: 4px; 
-    position: relative; border: 1px solid #333; overflow: hidden; 
-    display: flex; align-items: center; justify-content: center;
-}
-
-.hp-label { position: absolute; font-size: 0.55rem; color: #fff; font-weight: bold; z-index: 5; text-shadow: 1px 1px 2px #000; }
-
-.fill { height: 100%; position: absolute; top: 0; left: 0; }
-.fill.blue { background: #00f2ff; box-shadow: inset 0 0 10px #00f2ff; z-index: 1; }
-.fill.red { background: #ff3e3e; box-shadow: inset 0 0 10px #ff3e3e; z-index: 1; }
-.fill.shield { background: #e1ff00; z-index: 2; opacity: 0.7; }
-
-.heal-popup {
-    position: absolute; right: -5px; top: -30px; color: #4aff4a; font-weight: bold; font-size: 0.9rem;
-    animation: floatUp 0.8s ease-out forwards;
-}
-
-@keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-30px); } }
-
-canvas { flex-grow: 1; width: 100%; background: #000; display: block; }
-.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-.count { font-size: 10rem; color: #00f2ff; font-weight: bold; }
-h1.win { color: #00f2ff; } h1.lose { color: #ff3e3e; }
-button { background: transparent; border: 2px solid #00f2ff; color: #00f2ff; padding: 10px 30px; font-family: 'Orbitron'; cursor: pointer; margin-top: 20px; }
+    width: 100vw;
+    height: 100vh;
+    background: #050505;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+  }
+  
+  /* Header Dashboard */
+  .header-dashboard {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 15px;
+    background: rgba(20, 20, 25, 0.9);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+    box-sizing: border-box;
+    z-index: 10;
+  }
+  
+  .stat-box {
+    display: flex;
+    flex-direction: column;
+    width: 46%;
+    position: relative;
+  }
+  
+  .name {
+    color: #aaa;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  
+  /* HP Bar Container */
+  .mini-hp {
+    width: 100%;
+    height: 20px;
+    background: #111;
+    border-radius: 3px;
+    position: relative;
+    overflow: visible; /* Changed to visible so lifesteal can float out */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .fill {
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .fill.blue { background: linear-gradient(90deg, #00f2ff, #0066ff); box-shadow: 0 0 10px rgba(0, 242, 255, 0.3); }
+  .fill.red { background: linear-gradient(90deg, #ff3e3e, #8e0000); box-shadow: 0 0 10px rgba(255, 62, 62, 0.3); }
+  
+  /* Over-Health Overlay */
+  .fill.shield { 
+    background: rgba(255, 255, 255, 0.5); 
+    mix-blend-mode: overlay;
+    z-index: 2;
+  }
+  
+  .hp-label {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    color: #fff;
+    font-size: 11px;
+    line-height: 20px;
+    font-weight: 900;
+    text-shadow: 0 0 4px #000;
+    z-index: 3;
+  }
+  
+  /* Lifesteal +5HP Animation */
+  .heal-popup {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #00ff88;
+    font-weight: 900;
+    font-size: 16px;
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+    pointer-events: none;
+    animation: lifestealFloat 0.8s ease-out forwards;
+    z-index: 20;
+  }
+  
+  @keyframes lifestealFloat {
+    0% { transform: translate(-50%, 0); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translate(-50%, -40px); opacity: 0; }
+  }
+  
+  /* Overlays (Countdown & Game Over) */
+  .overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    backdrop-filter: blur(5px);
+  }
+  
+  .count {
+    font-size: 140px;
+    color: #fff;
+    font-weight: 900;
+    font-style: italic;
+    text-shadow: 0 0 30px #00f2ff;
+  }
+  
+  /* Win/Loss Result Styling */
+  h1.win { color: #00f2ff; text-shadow: 0 0 40px rgba(0, 242, 255, 0.5); font-size: 70px; margin-bottom: 5px; }
+  h1.lose { color: #ff3e3e; text-shadow: 0 0 40px rgba(255, 62, 62, 0.5); font-size: 70px; margin-bottom: 5px; }
+  
+  .score-summary {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  
+  .score-summary p {
+    color: #888;
+    font-size: 18px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  
+  /* Grade A+ Animation */
+  .grade {
+    font-size: 100px;
+    color: #ffd700;
+    margin: 10px 0;
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+    font-family: 'Arial Black', sans-serif;
+    animation: gradePulse 1.2s infinite ease-in-out;
+  }
+  
+  @keyframes gradePulse {
+    0% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.15); filter: brightness(1.3); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+  
+  /* Navigation Button */
+  button {
+    padding: 16px 50px;
+    font-size: 16px;
+    font-weight: 900;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    letter-spacing: 3px;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+  }
+  
+  button:active {
+    transform: scale(0.9);
+    background: #00f2ff;
+  }
+  
+  /* Game Canvas */
+  canvas {
+    background: #000;
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - 80px);
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+  }
