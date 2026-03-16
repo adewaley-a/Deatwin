@@ -101,7 +101,8 @@ export default function GamePage() {
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
-  }, [roomId, role]); // roomId added to dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]); 
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -270,6 +271,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, opp, boxHealth, shieldHealth, screenShake]);
 
   return (
