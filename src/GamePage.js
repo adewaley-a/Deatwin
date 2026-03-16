@@ -10,6 +10,7 @@ export default function GamePage() {
   const navigate = useNavigate();
   const socket = useRef(null);
   const canvasRef = useRef(null);
+  const audioCtx = useRef(null);
   
   const [role, setRole] = useState(null); 
   const [health, setHealth] = useState({ host: 650, guest: 650 }); 
@@ -33,10 +34,50 @@ export default function GamePage() {
 
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const sparks = useRef([]);
+  const sparks = useRef([]); 
   const activeTouches = useRef(new Map());
 
   const opp = role === 'host' ? 'guest' : 'host';
+
+  // Sound Engine (Web Audio API)
+  const playImpactSound = (type) => {
+    if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.current.createOscillator();
+    const gain = audioCtx.current.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.current.destination);
+
+    if (type === 'shield') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(150, audioCtx.current.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, audioCtx.current.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, audioCtx.current.currentTime);
+    } else if (type === 'box') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(100, audioCtx.current.currentTime);
+      gain.gain.setValueAtTime(0.2, audioCtx.current.currentTime);
+    } else {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(80, audioCtx.current.currentTime);
+      gain.gain.setValueAtTime(0.05, audioCtx.current.currentTime);
+    }
+    
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.1);
+    osc.start();
+    osc.stop(audioCtx.current.currentTime + 0.1);
+  };
+
+  const createBurst = (x, y, color) => {
+    for (let i = 0; i < 8; i++) {
+      sparks.current.push({
+        x, y,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        alpha: 1,
+        color
+      });
+    }
+  };
 
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
@@ -53,6 +94,9 @@ export default function GamePage() {
     socket.current.on("incoming_bullet", (b) => enemyBullets.current.push(b));
     
     socket.current.on("update_game_state", (data) => {
+      if (data.targetHit) {
+        playImpactSound(data.targetHit);
+      }
       if (data.targetHit === 'box') {
         if (data.attackerRole === 'host') { setShowHealHost(true); setTimeout(() => setShowHealHost(false), 800); }
         else { setShowHealGuest(true); setTimeout(() => setShowHealGuest(false), 800); }
@@ -132,12 +176,20 @@ export default function GamePage() {
     let frame;
     const render = () => {
       ctx.clearRect(0, 0, W, H);
+      
+      sparks.current.forEach((s, i) => {
+        s.x += s.vx; s.y += s.vy; s.alpha -= 0.03;
+        ctx.fillStyle = s.color; ctx.globalAlpha = Math.max(0, s.alpha);
+        ctx.fillRect(s.x, s.y, 2, 2);
+        if (s.alpha <= 0) sparks.current.splice(i, 1);
+      });
+      ctx.globalAlpha = 1;
+
       const drawBar = (x, y, val, max, color) => {
         ctx.fillStyle = "#111"; ctx.fillRect(x - 20, y - 40, 40, 4);
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, Math.max(0, (val/max)*40), 4);
       };
 
-      // Boxes
       if (boxHealth[role] > 0) {
         ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50);
         drawBar(myBox.current.x, myBox.current.y, boxHealth[role], 300, "#00f2ff");
@@ -147,29 +199,22 @@ export default function GamePage() {
         drawBar(enemyBox.current.x, enemyBox.current.y, boxHealth[opp], 300, "#ff3e3e");
       }
 
-      // Shields & Controllers
       const drawShieldComp = (pos, color, hp, isEnemy) => {
         if (hp <= 0) return;
-        // 1. Controller Circles
         ctx.fillStyle = isEnemy ? "rgba(255, 62, 62, 0.15)" : "rgba(0, 242, 255, 0.15)";
         ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -15 : 15), 25, 0, Math.PI*2); ctx.fill();
-        // 2. Shield Arc
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath();
         const s = isEnemy ? 0.25 : -0.75; const e = isEnemy ? 0.75 : -0.25;
         ctx.arc(pos.x, pos.y, 60, Math.PI * s, Math.PI * e); ctx.stroke();
-        // 3. HP Bar (In front)
         const barY = isEnemy ? pos.y + 45 : pos.y - 45;
         drawBar(pos.x, barY, hp, 350, "#00ff88");
       };
       drawShieldComp(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShieldComp(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Shooter & Steering Wheel
       const drawShooterComp = (pos, color, isEnemy) => {
-        // Steering Wheel Circle
         ctx.strokeStyle = isEnemy ? "rgba(255, 62, 62, 0.3)" : "rgba(0, 242, 255, 0.3)";
         ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -50 : 50), 20, 0, Math.PI*2); ctx.stroke();
-        // Shooter Body
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.rotate(pos.rot || 0);
         ctx.fillStyle = color; ctx.beginPath();
         if (isEnemy) { ctx.moveTo(0, 30); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); }
@@ -179,32 +224,36 @@ export default function GamePage() {
       drawShooterComp(myShooter.current, "#00f2ff", false);
       drawShooterComp(enemyShooter.current, "#ff3e3e", true);
 
-      // Bullets
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy; ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        if (b.y < -50 || b.y > H + 50) myBullets.current.splice(i, 1);
+        if (b.y < -50 || b.y > H + 50) { myBullets.current.splice(i, 1); return; }
+        
         const dS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
         const a = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
+        
         if (shieldHealth[opp] > 0 && dS > 55 && dS < 75 && Math.abs(a - Math.PI/2) < 0.9) {
+          createBurst(b.x, b.y, "#00f2ff");
           socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp });
           myBullets.current.splice(i, 1);
         } else if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 28 && Math.abs(b.y - enemyBox.current.y) < 28) {
+          createBurst(b.x, b.y, "#ffaa00");
           socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp });
           myBullets.current.splice(i, 1);
         } else if (Math.abs(b.x - enemyShooter.current.x) < 22 && Math.abs(b.y - enemyShooter.current.y) < 35) {
+          createBurst(b.x, b.y, "#ff3e3e");
           socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp });
           myBullets.current.splice(i, 1);
         }
       });
-      enemyBullets.current.forEach((b, i) => {
+      
+      enemyBullets.current.forEach((b) => {
         b.x += b.vx; b.y += b.vy; ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        if (b.y < -50 || b.y > H + 50) enemyBullets.current.splice(i, 1);
       });
 
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, roomId]);
+  }, [role, opp, boxHealth, shieldHealth, roomId, W, H]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>

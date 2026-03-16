@@ -1,6 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
-
-/* General Layout & Background */
 /* Core Layout */
 .game-container {
     width: 100vw; 
@@ -41,7 +38,7 @@
     margin-bottom: 4px; 
   }
   
-  /* HP Bar Containers */
+  /* HP Bar Styling */
   .mini-hp {
     width: 100%; 
     height: 24px; 
@@ -57,13 +54,14 @@
     position: absolute; 
     left: 0; 
     top: 0; 
+    /* Smooth transition for replenishment and damage */
     transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
   }
   
   .fill.blue { background: linear-gradient(90deg, #00f2ff, #0077ff); }
   .fill.red { background: linear-gradient(90deg, #ff3e3e, #aa0000); }
   
-  /* Overhealth (Gold Glow) */
+  /* Overhealth (Gold Glow) Layer */
   .fill.over-gold { 
     background: linear-gradient(90deg, #ffd700, #ff8c00); 
     box-shadow: 0 0 12px rgba(255, 215, 0, 0.4); 
@@ -81,7 +79,7 @@
     z-index: 5; 
   }
   
-  /* Combat Popup Animations */
+  /* Lifesteal/Heal Popup Animation */
   .heal-popup { 
     position: absolute; 
     top: -25px; 
@@ -99,7 +97,7 @@
     100% { transform: translate(-50%, -45px); opacity: 0; } 
   }
   
-  /* End Game & Countdown Overlays */
+  /* Overlays (Countdown & Game Over) */
   .overlay { 
     position: absolute; 
     top: 0; 
@@ -120,8 +118,8 @@
     font-weight: 900;
   }
   
-  h1.win { color: #00f2ff; font-size: 60px; margin: 0; }
-  h1.lose { color: #ff3e3e; font-size: 60px; margin: 0; }
+  h1.win { color: #00f2ff; font-size: 60px; margin: 0; text-shadow: 0 0 20px rgba(0, 242, 255, 0.5); }
+  h1.lose { color: #ff3e3e; font-size: 60px; margin: 0; text-shadow: 0 0 20px rgba(255, 62, 62, 0.5); }
   
   .score-summary { 
     margin: 20px 0; 
@@ -130,15 +128,16 @@
   }
   
   .grade { 
-    font-size: 54px; 
+    font-size: 48px; 
     color: #ffd700; 
     margin-top: 10px; 
     font-weight: 900;
     text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
   }
   
+  /* Action Button */
   button { 
-    padding: 16px 50px; 
+    padding: 16px 45px; 
     background: #fff; 
     color: #000;
     border-radius: 50px; 
@@ -147,15 +146,17 @@
     margin-top: 20px; 
     font-size: 18px;
     cursor: pointer;
+    transition: transform 0.1s ease;
   }
   
   button:active {
     transform: scale(0.95);
   }
   
-  /* Canvas Sizing */
+  /* Game Canvas */
   canvas {
     flex-grow: 1;
     width: 100%;
     max-width: 400px;
+    cursor: crosshair;
   }
