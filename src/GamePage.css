@@ -9,7 +9,7 @@
     align-items: center;
     overflow: hidden;
     touch-action: none;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
   
   /* Header Dashboard */
@@ -17,9 +17,9 @@
     width: 100%;
     display: flex;
     justify-content: space-between;
-    padding: 10px 15px;
-    background: rgba(20, 20, 25, 0.9);
-    border-bottom: 2px solid rgba(255, 255, 255, 0.05);
+    padding: 12px 15px;
+    background: rgba(15, 15, 20, 0.95);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
     box-sizing: border-box;
     z-index: 10;
   }
@@ -32,22 +32,22 @@
   }
   
   .name {
-    color: #aaa;
-    font-size: 9px;
+    color: #888;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 1.5px;
     margin-bottom: 4px;
     text-transform: uppercase;
   }
   
-  /* HP Bar Container */
+  /* HP Bar Styling */
   .mini-hp {
     width: 100%;
-    height: 20px;
+    height: 24px;
     background: #111;
-    border-radius: 3px;
+    border-radius: 4px;
     position: relative;
-    overflow: visible; /* Changed to visible so lifesteal can float out */
+    overflow: visible;
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
   
@@ -56,16 +56,16 @@
     position: absolute;
     left: 0;
     top: 0;
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: width 0.3s ease-out;
   }
   
-  .fill.blue { background: linear-gradient(90deg, #00f2ff, #0066ff); box-shadow: 0 0 10px rgba(0, 242, 255, 0.3); }
-  .fill.red { background: linear-gradient(90deg, #ff3e3e, #8e0000); box-shadow: 0 0 10px rgba(255, 62, 62, 0.3); }
+  .fill.blue { background: linear-gradient(90deg, #00f2ff, #0077ff); }
+  .fill.red { background: linear-gradient(90deg, #ff3e3e, #aa0000); }
   
-  /* Over-Health Overlay */
-  .fill.shield { 
-    background: rgba(255, 255, 255, 0.5); 
-    mix-blend-mode: overlay;
+  /* DISTINCT GOLD OVERHEALTH */
+  .fill.over-gold { 
+    background: linear-gradient(90deg, #ffd700, #ff8c00); 
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
     z-index: 2;
   }
   
@@ -74,11 +74,11 @@
     width: 100%;
     text-align: center;
     color: #fff;
-    font-size: 11px;
-    line-height: 20px;
+    font-size: 12px;
+    line-height: 24px;
     font-weight: 900;
-    text-shadow: 0 0 4px #000;
-    z-index: 3;
+    text-shadow: 0 1px 3px #000;
+    z-index: 5;
   }
   
   /* Lifesteal +5HP Animation */
@@ -90,99 +90,68 @@
     color: #00ff88;
     font-weight: 900;
     font-size: 16px;
-    text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
-    pointer-events: none;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
     animation: lifestealFloat 0.8s ease-out forwards;
-    z-index: 20;
   }
   
   @keyframes lifestealFloat {
     0% { transform: translate(-50%, 0); opacity: 0; }
     20% { opacity: 1; }
-    100% { transform: translate(-50%, -40px); opacity: 0; }
+    100% { transform: translate(-50%, -45px); opacity: 0; }
   }
   
-  /* Overlays (Countdown & Game Over) */
+  /* Overlays */
   .overlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.92);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 100;
-    backdrop-filter: blur(5px);
+    backdrop-filter: blur(8px);
   }
   
   .count {
-    font-size: 140px;
+    font-size: 150px;
     color: #fff;
     font-weight: 900;
-    font-style: italic;
     text-shadow: 0 0 30px #00f2ff;
   }
   
-  /* Win/Loss Result Styling */
-  h1.win { color: #00f2ff; text-shadow: 0 0 40px rgba(0, 242, 255, 0.5); font-size: 70px; margin-bottom: 5px; }
-  h1.lose { color: #ff3e3e; text-shadow: 0 0 40px rgba(255, 62, 62, 0.5); font-size: 70px; margin-bottom: 5px; }
+  h1.win { color: #00f2ff; font-size: 60px; text-shadow: 0 0 30px #00f2ff; }
+  h1.lose { color: #ff3e3e; font-size: 60px; text-shadow: 0 0 30px #ff3e3e; }
   
-  .score-summary {
-    text-align: center;
-    margin-bottom: 30px;
-  }
-  
-  .score-summary p {
-    color: #888;
-    font-size: 18px;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-  }
-  
-  /* Grade A+ Animation */
   .grade {
     font-size: 100px;
     color: #ffd700;
-    margin: 10px 0;
-    text-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
-    font-family: 'Arial Black', sans-serif;
-    animation: gradePulse 1.2s infinite ease-in-out;
+    text-shadow: 0 0 30px #ffd700;
+    animation: pulse 1.2s infinite;
   }
   
-  @keyframes gradePulse {
-    0% { transform: scale(1); filter: brightness(1); }
-    50% { transform: scale(1.15); filter: brightness(1.3); }
-    100% { transform: scale(1); filter: brightness(1); }
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
   }
   
-  /* Navigation Button */
   button {
-    padding: 16px 50px;
-    font-size: 16px;
-    font-weight: 900;
+    padding: 15px 45px;
+    font-size: 18px;
     background: #fff;
     color: #000;
     border: none;
+    font-weight: 900;
     border-radius: 50px;
     cursor: pointer;
-    letter-spacing: 3px;
-    transition: all 0.2s ease;
-    text-transform: uppercase;
+    letter-spacing: 2px;
   }
   
-  button:active {
-    transform: scale(0.9);
-    background: #00f2ff;
-  }
-  
-  /* Game Canvas */
   canvas {
-    background: #000;
+    background: radial-gradient(circle, #101015 0%, #000 100%);
     display: block;
-    max-width: 100%;
-    max-height: calc(100vh - 80px);
-    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
   }

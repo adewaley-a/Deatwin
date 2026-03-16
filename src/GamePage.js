@@ -21,7 +21,6 @@ export default function GamePage() {
   const [finalScore, setFinalScore] = useState(0);
   const [countdown, setCountdown] = useState(null);
   
-  // Lifesteal states
   const [showHealHost, setShowHealHost] = useState(false);
   const [showHealGuest, setShowHealGuest] = useState(false);
 
@@ -62,11 +61,14 @@ export default function GamePage() {
       enemyBox.current = data.box;
     });
 
-    socket.current.on("incoming_bullet", (b) => enemyBullets.current.push(b));
+    socket.current.on("incoming_bullet", (b) => {
+        // Correcting incoming bullet vector for mirrored screen
+        enemyBullets.current.push({ x: b.x, y: b.y, vx: b.vx, vy: b.vy });
+    });
+    
     socket.current.on("incoming_grenade", (g) => grenadesArr.current.push(g));
     
     socket.current.on("update_game_state", (data) => {
-      // Logic for showing lifesteal popup to both players
       if (data.targetHit === 'box') {
         if (data.attackerRole === 'host') {
           setShowHealHost(true);
@@ -83,17 +85,16 @@ export default function GamePage() {
       setShieldHealth(data.shieldHealth);
       setGrenades(data.grenades);
 
-      // Decisive Win/Loss check
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winnerRole = data.health.host <= 0 ? 'guest' : 'host';
         const total = data.health[winnerRole] + data.shieldHealth[winnerRole] + data.boxHealth[winnerRole];
         setFinalScore(total);
-        setGameOver(socket.current.id === data[winnerRole] ? "win" : "lose");
+        setGameOver(role === winnerRole ? "win" : "lose");
       }
     });
 
     return () => socket.current.disconnect();
-  }, [roomId]);
+  }, [roomId, role]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -139,9 +140,7 @@ export default function GamePage() {
 
       if (e.type === "touchstart") {
         let id = null;
-        // Shooter rotation wheel
         if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 50)) < 45) id = "wheel";
-        // Shooter body
         else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 45) {
             id = "shooter";
             if (now - lastTap.current < 300 && grenades[role] > 0) {
@@ -150,10 +149,8 @@ export default function GamePage() {
             }
             lastTap.current = now;
         } 
-        // Corrected Shield Drag (Handle is now smaller and visible)
         else if (Math.hypot(tx - myShield.current.x, ty - (myShield.current.y + 15)) < 40 && shieldHealth[role] > 0) id = "shield";
         else if (Math.hypot(tx - myBox.current.x, ty - myBox.current.y) < 45 && boxHealth[role] > 0) id = "box";
-        
         if (id) activeTouches.current.set(t.identifier, id);
       }
 
@@ -210,7 +207,7 @@ export default function GamePage() {
 
       const drawMiniBar = (x, y, val, max, color) => {
         ctx.fillStyle = "#111"; ctx.fillRect(x - 20, y - 40, 40, 4);
-        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, (val/max)*40, 4);
+        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, Math.max(0, (val/max)*40), 4);
       };
 
       if (boxHealth[role] > 0) {
@@ -228,7 +225,9 @@ export default function GamePage() {
         const s = isEnemy ? 0.25 : -0.75; const e = isEnemy ? 0.75 : -0.25;
         ctx.arc(pos.x, pos.y, 60, Math.PI * s, Math.PI * e); ctx.stroke();
         
-        // Translucent Drag Handle
+        // Shield HP Bar (Visible underneath)
+        drawMiniBar(pos.x, pos.y + (isEnemy ? 10 : 30), hp, 350, "#00ff88");
+
         if (!isEnemy) {
           ctx.fillStyle = "rgba(0, 242, 255, 0.2)";
           ctx.beginPath(); ctx.arc(pos.x, pos.y + 15, 25, 0, Math.PI*2); ctx.fill();
@@ -237,10 +236,11 @@ export default function GamePage() {
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Collisions (Only emitting hits for opponent units)
+      // Bullet Collision for My Bullets (Going up)
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
+        
         const dS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
         const a = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
         
@@ -258,9 +258,22 @@ export default function GamePage() {
         if (b.y < -50 || b.y > H + 50) myBullets.current.splice(i, 1);
       });
 
+      // Collision for Enemy Bullets (Going down - fixing "Passing through")
       enemyBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
+
+        const dS = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
+        const a = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
+
+        // Blocking enemy bullets on my screen too
+        if (shieldHealth[role] > 0 && dS > 55 && dS < 75 && Math.abs(a + Math.PI/2) < 0.9) {
+            sparks.current.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1, color: "#fff" });
+            enemyBullets.current.splice(i, 1);
+        } else if (Math.abs(b.x - myShooter.current.x) < 22 && Math.abs(b.y - myShooter.current.y) < 35) {
+            enemyBullets.current.splice(i, 1);
+        }
+
         if (b.y < -50 || b.y > H + 50) enemyBullets.current.splice(i, 1);
       });
 
@@ -287,7 +300,10 @@ export default function GamePage() {
       const drawShooter = (pos, color, isEnemy) => {
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.rotate(pos.rot || 0);
         ctx.fillStyle = color; ctx.beginPath();
-        if (isEnemy) { ctx.moveTo(0, 30); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); }
+        if (isEnemy) { 
+            // Corrected facing direction for enemy
+            ctx.moveTo(0, 30); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); 
+        }
         else { 
             ctx.moveTo(0, -30); ctx.lineTo(-15, 10); ctx.lineTo(15, 10); 
             if (flash.current > 0) {
@@ -302,7 +318,6 @@ export default function GamePage() {
             }
         }
         ctx.fill(); ctx.restore();
-        // Rotation Wheel
         ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -50 : 50), 20, 0, Math.PI*2); ctx.stroke();
       };
       drawShooter(myShooter.current, "#00f2ff", false);
@@ -321,7 +336,7 @@ export default function GamePage() {
           <span className="name">ENEMY [G: {grenades[opp]}]</span>
           <div className="mini-hp">
             <div className="fill red" style={{width: `${(health[opp]/650)*100}%`}}/>
-            <div className="fill shield" style={{width: `${(overHealth[opp]/200)*100}%`}}/>
+            <div className="fill over-gold" style={{width: `${(overHealth[opp]/200)*100}%`}}/>
             <span className="hp-label">{health[opp]} HP</span>
             {showHealGuest && <div className="heal-popup">+5 HP</div>}
           </div>
@@ -330,7 +345,7 @@ export default function GamePage() {
           <span className="name">YOU [G: {grenades[role]}]</span>
           <div className="mini-hp">
             <div className="fill blue" style={{width: `${(health[role]/650)*100}%`}}/>
-            <div className="fill shield" style={{width: `${(overHealth[role]/200)*100}%`}}/>
+            <div className="fill over-gold" style={{width: `${(overHealth[role]/200)*100}%`}}/>
             <span className="hp-label">{health[role]} HP</span>
             {showHealHost && <div className="heal-popup">+5 HP</div>}
           </div>
