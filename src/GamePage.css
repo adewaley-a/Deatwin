@@ -61,7 +61,7 @@ canvas {
 .overlay { 
   position: absolute; 
   inset: 0; 
-  background: rgba(0, 0, 0, 0.9); 
+  background: rgba(0, 0, 0, 0.95); 
   display: flex; 
   flex-direction: column; 
   justify-content: center; 
@@ -70,18 +70,18 @@ canvas {
 }
 
 .count { 
-  font-size: 100px; 
+  font-size: 120px; 
   color: #fff; 
   font-weight: 900; 
 }
 
-h1.win { color: #00f2ff; font-size: 60px; text-shadow: 0 0 20px #00f2ff; margin-bottom: 10px; }
-h1.lose { color: #ff3e3e; font-size: 60px; text-shadow: 0 0 20px #ff3e3e; margin-bottom: 10px; }
+h1.win { color: #00f2ff; font-size: 60px; text-shadow: 0 0 20px #00f2ff; margin: 0; }
+h1.lose { color: #ff3e3e; font-size: 60px; text-shadow: 0 0 20px #ff3e3e; margin: 0; }
 
 .lose-text {
   color: #888;
   font-weight: 700;
-  margin-bottom: 20px;
+  margin: 15px 0;
 }
 
 .score-summary { 
@@ -106,9 +106,4 @@ h1.lose { color: #ff3e3e; font-size: 60px; text-shadow: 0 0 20px #ff3e3e; margin
   font-weight: 900; 
   cursor: pointer;
   font-size: 18px;
-  transition: transform 0.1s ease;
-}
-
-.exit-btn:active {
-  transform: scale(0.95);
 }

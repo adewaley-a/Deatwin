@@ -17,7 +17,7 @@ export default function GamePage() {
   const [overHealth, setOverHealth] = useState({ host: 0, guest: 0 });
   const [boxHealth, setBoxHealth] = useState({ host: 300, guest: 300 }); 
   const [shieldHealth, setShieldHealth] = useState({ host: 350, guest: 350 }); 
-  const [grenades, setGrenades] = useState({ host: 2, guest: 2 }); // USED in HUD
+  const [grenades, setGrenades] = useState({ host: 2, guest: 2 });
   const [gameOver, setGameOver] = useState(null);
   const [finalScore, setFinalScore] = useState(0);
   const [countdown, setCountdown] = useState(null);
@@ -34,12 +34,12 @@ export default function GamePage() {
 
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const activeGrenades = useRef([]); // USED in Render Loop
+  const activeGrenades = useRef([]);
   const activeTouches = useRef(new Map());
 
-  const lastTapTime = useRef(0); // USED in handleTouch
+  const lastTapTime = useRef(0);
   const isCooking = useRef(false);
-  const cookPower = useRef(0); // USED in handleTouch & Render Loop
+  const cookPower = useRef(0);
 
   const opp = role === 'host' ? 'guest' : 'host';
 
@@ -62,6 +62,7 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   };
 
+  // Socket setup
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -102,6 +103,16 @@ export default function GamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
+  // FIX: Active Countdown Timer
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+    const timerId = setInterval(() => {
+      setCountdown(c => c - 1);
+    }, 1000);
+    return () => clearInterval(timerId);
+  }, [countdown]);
+
+  // Shooting loop
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -117,7 +128,7 @@ export default function GamePage() {
   }, [countdown, gameOver, role, roomId]);
 
   const handleTouch = (e) => {
-    if (!role || gameOver || countdown > 0) return;
+    if (!role || gameOver || (countdown !== null && countdown > 0)) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const now = Date.now();
 
@@ -126,7 +137,6 @@ export default function GamePage() {
       const ty = (t.clientY - rect.top) * (H / rect.height);
 
       if (e.type === "touchstart") {
-        // Grenade Cooking Logic (Double Tap)
         if (now - lastTapTime.current < 300 && grenades[role] > 0) {
           isCooking.current = true;
           cookPower.current = 0;
@@ -163,9 +173,8 @@ export default function GamePage() {
           const force = 4 + cookPower.current * 22;
           const vx = Math.sin(myShooter.current.rot) * force;
           const vy = -Math.cos(myShooter.current.rot) * force;
-          const gData = { x: myShooter.current.x, y: myShooter.current.y, vx, vy, timer: 85 };
-          activeGrenades.current.push(gData);
-          socket.current.emit("throw_grenade", { roomId, x: W - gData.x, y: H - gData.y, vx: -vx, vy: -vy });
+          activeGrenades.current.push({ x: myShooter.current.x, y: myShooter.current.y, vx, vy, timer: 85 });
+          socket.current.emit("throw_grenade", { roomId, x: W - myShooter.current.x, y: H - myShooter.current.y, vx: -vx, vy: -vy });
           isCooking.current = false;
         }
         activeTouches.current.delete(t.identifier);
@@ -184,30 +193,22 @@ export default function GamePage() {
       }
       ctx.clearRect(-50, -50, W+100, H+100);
 
-      // GRENADE RENDERING & COLLISION
+      const drawBar = (x, y, val, max, color) => {
+        ctx.fillStyle = "#111"; ctx.fillRect(x - 20, y - 40, 40, 4);
+        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, Math.max(0, (val/max)*40), 4);
+      };
+
+      // Grenades
       activeGrenades.current.forEach((g, i) => {
         g.x += g.vx; g.y += g.vy; g.timer--;
         ctx.fillStyle = "#ffaa00"; ctx.beginPath(); ctx.arc(g.x, g.y, 10, 0, Math.PI*2); ctx.fill();
         if (g.timer <= 0) {
             playSound('explosion');
-            const targets = [
-              { id: 'player', x: enemyShooter.current.x, y: enemyShooter.current.y, r: opp },
-              { id: 'shield', x: enemyShield.current.x, y: enemyShield.current.y, r: opp },
-              { id: 'box', x: enemyBox.current.x, y: enemyBox.current.y, r: opp },
-              { id: 'player', x: myShooter.current.x, y: myShooter.current.y, r: role }
-            ];
-            targets.forEach(t => {
-              const d = Math.hypot(g.x - t.x, g.y - t.y);
-              if (d < 130) {
-                const dmg = Math.round(70 * (1 - d/130));
-                socket.current.emit("take_damage", { roomId, target: t.id, victimRole: t.r, amount: dmg });
-              }
-            });
             activeGrenades.current.splice(i, 1);
         }
       });
 
-      // BULLET RENDERING & PRECISE COLLISION
+      // Bullets
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
@@ -229,7 +230,6 @@ export default function GamePage() {
         if (b.y < -50 || b.y > H + 50) myBullets.current.splice(i, 1);
       });
 
-      // COOKING INDICATOR
       if (isCooking.current) {
         cookPower.current = Math.min(1, cookPower.current + 0.015);
         ctx.strokeStyle = "#ffaa00"; ctx.lineWidth = 4; ctx.beginPath();
@@ -237,19 +237,19 @@ export default function GamePage() {
         ctx.stroke();
       }
 
-      // TRANSLUCENT GUIDES
+      // Drag circles
       ctx.globalAlpha = 0.15;
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 40, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(myBox.current.x, myBox.current.y, 40, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1.0;
 
-      // STEERING WHEEL
+      // Steering Wheel
       ctx.strokeStyle = "rgba(0, 242, 255, 0.4)";
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 50, 40, 0, Math.PI*2); ctx.stroke();
 
-      // MUZZLE FLASH
+      // Muzzle Flash Tip
       if (muzzleFlash) {
         ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
         const tipX = myShooter.current.x + Math.sin(myShooter.current.rot) * 35;
@@ -257,11 +257,7 @@ export default function GamePage() {
         ctx.beginPath(); ctx.arc(tipX, tipY, 12, 0, Math.PI*2); ctx.fill();
       }
 
-      const drawBar = (x, y, val, max, color) => {
-        ctx.fillStyle = "#111"; ctx.fillRect(x - 20, y - 40, 40, 4);
-        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, Math.max(0, (val/max)*40), 4);
-      };
-
+      // BOXES
       if (boxHealth[role] > 0) {
         ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50);
         drawBar(myBox.current.x, myBox.current.y, boxHealth[role], 300, "#00f2ff");
@@ -271,11 +267,14 @@ export default function GamePage() {
         drawBar(enemyBox.current.x, enemyBox.current.y, boxHealth[opp], 300, "#ff3e3e");
       }
 
+      // SHIELDS + HEALTH BARS ON TOP
       const drawShield = (pos, color, hp, isEnemy) => {
         if (hp <= 0) return;
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath();
         const s = isEnemy ? 0.25 : -0.75; const e = isEnemy ? 0.75 : -0.25;
         ctx.arc(pos.x, pos.y, 60, Math.PI * s, Math.PI * e); ctx.stroke();
+        // Shield HP Bar
+        drawBar(pos.x, pos.y, hp, 350, "#00ff88");
       };
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
@@ -312,7 +311,9 @@ export default function GamePage() {
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
-      {countdown > 0 && <div className="overlay"><div className="count">{countdown}</div></div>}
+      {countdown !== null && countdown > 0 && (
+        <div className="overlay"><div className="count">{countdown}</div></div>
+      )}
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
