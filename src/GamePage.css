@@ -1,4 +1,4 @@
-/* Core Layout */
+/* Container & Layout */
 .game-container {
     width: 100vw; 
     height: 100vh; 
@@ -11,7 +11,7 @@
     font-family: 'Inter', sans-serif;
   }
   
-  /* Top Dashboard HUD */
+  /* Header Dashboard (HUD) */
   .header-dashboard {
     width: 100%; 
     display: flex; 
@@ -38,7 +38,7 @@
     margin-bottom: 4px; 
   }
   
-  /* HP Bar Styling */
+  /* Health Bar Systems */
   .mini-hp {
     width: 100%; 
     height: 24px; 
@@ -54,14 +54,13 @@
     position: absolute; 
     left: 0; 
     top: 0; 
-    /* Smooth transition for replenishment and damage */
     transition: width 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
   }
   
   .fill.blue { background: linear-gradient(90deg, #00f2ff, #0077ff); }
   .fill.red { background: linear-gradient(90deg, #ff3e3e, #aa0000); }
   
-  /* Overhealth (Gold Glow) Layer */
+  /* Overhealth Gold Glow */
   .fill.over-gold { 
     background: linear-gradient(90deg, #ffd700, #ff8c00); 
     box-shadow: 0 0 12px rgba(255, 215, 0, 0.4); 
@@ -79,7 +78,7 @@
     z-index: 5; 
   }
   
-  /* Lifesteal/Heal Popup Animation */
+  /* Heal / Lifesteal Popups */
   .heal-popup { 
     position: absolute; 
     top: -25px; 
@@ -97,66 +96,7 @@
     100% { transform: translate(-50%, -45px); opacity: 0; } 
   }
   
-  /* Overlays (Countdown & Game Over) */
+  /* Overlays (Countdown & Result) */
   .overlay { 
     position: absolute; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%; 
-    background: rgba(0, 0, 0, 0.9); 
-    display: flex; 
-    flex-direction: column; 
-    justify-content: center; 
-    align-items: center; 
-    z-index: 100; 
-  }
-  
-  .count { 
-    font-size: 150px; 
-    color: #fff; 
-    font-weight: 900;
-  }
-  
-  h1.win { color: #00f2ff; font-size: 60px; margin: 0; text-shadow: 0 0 20px rgba(0, 242, 255, 0.5); }
-  h1.lose { color: #ff3e3e; font-size: 60px; margin: 0; text-shadow: 0 0 20px rgba(255, 62, 62, 0.5); }
-  
-  .score-summary { 
-    margin: 20px 0; 
-    text-align: center; 
-    color: #ccc; 
-  }
-  
-  .grade { 
-    font-size: 48px; 
-    color: #ffd700; 
-    margin-top: 10px; 
-    font-weight: 900;
-    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-  }
-  
-  /* Action Button */
-  button { 
-    padding: 16px 45px; 
-    background: #fff; 
-    color: #000;
-    border-radius: 50px; 
-    font-weight: 900; 
-    border: none; 
-    margin-top: 20px; 
-    font-size: 18px;
-    cursor: pointer;
-    transition: transform 0.1s ease;
-  }
-  
-  button:active {
-    transform: scale(0.95);
-  }
-  
-  /* Game Canvas */
-  canvas {
-    flex-grow: 1;
-    width: 100%;
-    max-width: 400px;
-    cursor: crosshair;
-  }
+    top: 0;
