@@ -21,7 +21,6 @@ export default function GamePage() {
   const [finalScore, setFinalScore] = useState(0);
   const [countdown, setCountdown] = useState(null);
   
-  // Heal Popup states
   const [showHealHost, setShowHealHost] = useState(false);
   const [showHealGuest, setShowHealGuest] = useState(false);
 
@@ -38,7 +37,7 @@ export default function GamePage() {
   const sparks = useRef([]);
   const flash = useRef(0);
   const grenadesArr = useRef([]);
-  const explosions = useRef([]);
+  const explosions = useRef([]); // FIXED: Now used in the render loop
   const screenShake = useRef(0);
   const activeTouches = useRef(new Map());
 
@@ -59,7 +58,6 @@ export default function GamePage() {
     socket.current.on("incoming_bullet", (b) => enemyBullets.current.push(b));
     
     socket.current.on("update_game_state", (data) => {
-      // Fix: Trigger heal animation on the correct shooter
       if (data.targetHit === 'box') {
         if (data.attackerRole === 'host') {
           setShowHealHost(true);
@@ -76,18 +74,18 @@ export default function GamePage() {
       setShieldHealth(data.shieldHealth);
       setGrenades(data.grenades);
 
-      // Decisive Win/Loss check using actual Socket ID
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winnerRole = data.health.host <= 0 ? 'guest' : 'host';
         const winnerId = winnerRole === 'host' ? data.hostId : data.guestId;
-        
         setFinalScore(data.health[winnerRole] + data.shieldHealth[winnerRole] + data.boxHealth[winnerRole]);
         setGameOver(socket.current.id === winnerId ? "win" : "lose");
       }
     });
 
-    return () => socket.current.disconnect();
-  }, [roomId, role]);
+    return () => {
+        if (socket.current) socket.current.disconnect();
+    };
+  }, [roomId]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -95,7 +93,6 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Launch Grenade logic
   const launchGrenade = useCallback((holdTime) => {
     const range = holdTime * H * 0.8;
     const targetX = myShooter.current.x + Math.sin(myShooter.current.rot) * range;
@@ -105,7 +102,6 @@ export default function GamePage() {
     socket.current.emit("launch_grenade", { roomId, x: W - g.x, y: H - g.y, tx: W - g.tx, ty: H - g.ty });
   }, [roomId, H, W]);
 
-  // Shooting Interval
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -166,7 +162,7 @@ export default function GamePage() {
       }
       ctx.clearRect(0, 0, W, H);
 
-      // Sparks
+      // Rendering Sparks
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.alpha -= 0.03;
         ctx.fillStyle = s.color; ctx.globalAlpha = Math.max(0, s.alpha);
@@ -180,7 +176,7 @@ export default function GamePage() {
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, Math.max(0, (val/max)*40), 4);
       };
 
-      // Boxes
+      // Drawing Boxes
       if (boxHealth[role] > 0) {
           ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x - 25, myBox.current.y - 25, 50, 50);
           drawBar(myBox.current.x, myBox.current.y, boxHealth[role], 300, "#00f2ff");
@@ -190,35 +186,33 @@ export default function GamePage() {
           drawBar(enemyBox.current.x, enemyBox.current.y, boxHealth[opp], 300, "#ff3e3e");
       }
 
-      // Shields
+      // Drawing Shields
       const drawShield = (pos, color, hp, isEnemy) => {
         if (hp <= 0) return;
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath();
         const s = isEnemy ? 0.25 : -0.75; const e = isEnemy ? 0.75 : -0.25;
         ctx.arc(pos.x, pos.y, 60, Math.PI * s, Math.PI * e); ctx.stroke();
-        
-        // Placement: In front of shield (closer to center of screen)
         const barY = isEnemy ? pos.y + 45 : pos.y - 45;
         drawBar(pos.x, barY, hp, 350, "#00ff88");
-
-        if (!isEnemy) {
-          ctx.fillStyle = "rgba(0, 242, 255, 0.2)";
-          ctx.beginPath(); ctx.arc(pos.x, pos.y + 15, 25, 0, Math.PI*2); ctx.fill();
-        }
       };
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
 
-      // Bullet Collision for My Bullets
+      // Explosion Logic (FIXED: explosions is now used)
+      explosions.current.forEach((ex, i) => {
+        ex.r += 5; ex.alpha -= 0.02;
+        ctx.strokeStyle = `rgba(255, 165, 0, ${ex.alpha})`;
+        ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI*2); ctx.stroke();
+        if (ex.alpha <= 0) explosions.current.splice(i, 1);
+      });
+
+      // Bullet Logic
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        
         const dS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
         const a = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
-        
         if (shieldHealth[opp] > 0 && dS > 55 && dS < 75 && Math.abs(a - Math.PI/2) < 0.9) {
-            sparks.current.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1, color: "#fff" });
             socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp });
             myBullets.current.splice(i, 1);
         } else if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 28 && Math.abs(b.y - enemyBox.current.y) < 28) {
@@ -231,30 +225,23 @@ export default function GamePage() {
         if (b.y < -50 || b.y > H + 50) myBullets.current.splice(i, 1);
       });
 
-      // Enemy Bullets
       enemyBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
         const dS = Math.hypot(b.x - myShield.current.x, b.y - myShield.current.y);
         const a = Math.atan2(b.y - myShield.current.y, b.x - myShield.current.x);
-
         if (shieldHealth[role] > 0 && dS > 55 && dS < 75 && Math.abs(a + Math.PI/2) < 0.9) {
-            sparks.current.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, alpha: 1, color: "#fff" });
-            enemyBullets.current.splice(i, 1);
-        } else if (Math.abs(b.x - myShooter.current.x) < 22 && Math.abs(b.y - myShooter.current.y) < 35) {
             enemyBullets.current.splice(i, 1);
         }
         if (b.y < -50 || b.y > H + 50) enemyBullets.current.splice(i, 1);
       });
 
-      // Shooter drawing
       const drawShooter = (pos, color, isEnemy) => {
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.rotate(pos.rot || 0);
         ctx.fillStyle = color; ctx.beginPath();
         if (isEnemy) { ctx.moveTo(0, 30); ctx.lineTo(-15, -10); ctx.lineTo(15, -10); }
         else { ctx.moveTo(0, -30); ctx.lineTo(-15, 10); ctx.lineTo(15, 10); }
         ctx.fill(); ctx.restore();
-        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pos.x, pos.y + (isEnemy ? -50 : 50), 20, 0, Math.PI*2); ctx.stroke();
       };
       drawShooter(myShooter.current, "#00f2ff", false);
       drawShooter(enemyShooter.current, "#ff3e3e", true);
@@ -263,7 +250,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, roomId, boxHealth, shieldHealth, opp, launchGrenade, W, H]);
+  }, [role, roomId, boxHealth, shieldHealth, opp, W, H]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
