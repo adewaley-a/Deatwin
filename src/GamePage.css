@@ -1,3 +1,7 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+/* General Layout & Background */
+/* Core Layout */
 /* Container & Layout */
 .game-container {
     width: 100vw; 
@@ -99,4 +103,82 @@
   /* Overlays (Countdown & Result) */
   .overlay { 
     position: absolute; 
-    top: 0;
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background: rgba(0, 0, 0, 0.9); 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    z-index: 100; 
+  }
+  
+  .count { 
+    font-size: 150px; 
+    color: #fff; 
+    font-weight: 900; 
+  }
+  
+  /* Win/Lose States */
+  h1.win { 
+    color: #00f2ff; 
+    font-size: 60px; 
+    margin: 0; 
+    text-shadow: 0 0 20px rgba(0, 242, 255, 0.6);
+  }
+  
+  h1.lose { 
+    color: #ff3e3e; 
+    font-size: 60px; 
+    margin: 0; 
+    text-shadow: 0 0 20px rgba(255, 62, 62, 0.6);
+  }
+  
+  /* Score & Grade Displays */
+  .score-summary { 
+    margin: 20px 0; 
+    text-align: center; 
+    color: #ccc; 
+    font-weight: 600;
+  }
+  
+  .grade { 
+    font-size: 64px; 
+    color: #ffd700; 
+    margin-top: 10px; 
+    font-weight: 900; 
+    text-shadow: 0 0 25px rgba(255, 215, 0, 0.8);
+    animation: gradeScale 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  
+  @keyframes gradeScale {
+    0% { transform: scale(0); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Interaction Button */
+  button { 
+    padding: 16px 45px; 
+    background: #fff; 
+    color: #000;
+    border-radius: 50px; 
+    font-weight: 900; 
+    border: none; 
+    margin-top: 20px; 
+    font-size: 18px; 
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  
+  button:active {
+    transform: scale(0.92);
+  }
+  
+  /* Gameplay Canvas */
+  canvas { 
+    flex-grow: 1; 
+    width: 100%; 
+    max-width: 400px; 
+  }
