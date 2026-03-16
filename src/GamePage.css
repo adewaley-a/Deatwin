@@ -1,31 +1,199 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
 
+/* General Layout & Background */
 .game-container {
-    width: 100vw; height: 100vh; background: #050505;
-    display: flex; flex-direction: column; align-items: center;
-    overflow: hidden; touch-action: none; font-family: 'Inter', sans-serif;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(circle at center, #0f0f15 0%, #050505 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'Inter', -apple-system, sans-serif;
   }
+  
+  /* Header Dashboard & Stat Boxes */
   .header-dashboard {
-    width: 100%; display: flex; justify-content: space-between;
-    padding: 12px 15px; background: rgba(15, 15, 20, 0.95);
-    border-bottom: 2px solid rgba(255, 255, 255, 0.1); box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: rgba(10, 10, 15, 0.95);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+    box-sizing: border-box;
+    z-index: 10;
   }
+  
+  .stat-box {
+    display: flex;
+    flex-direction: column;
+    width: 46%;
+    position: relative;
+  }
+  
+  .name {
+    color: #888;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  
+  /* HP Bar Styling */
   .mini-hp {
-    width: 100%; height: 24px; background: #111; border-radius: 4px;
-    position: relative; overflow: visible; border: 1px solid rgba(255, 255, 255, 0.1);
+    width: 100%;
+    height: 24px;
+    background: #111;
+    border-radius: 4px;
+    position: relative;
+    overflow: visible; /* Allows heal popup to float out */
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
-  .fill { height: 100%; position: absolute; left: 0; top: 0; transition: width 0.3s ease-out; }
+  
+  .fill {
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
   .fill.blue { background: linear-gradient(90deg, #00f2ff, #0077ff); }
   .fill.red { background: linear-gradient(90deg, #ff3e3e, #aa0000); }
+  
+  /* Overhealth Gold Glow */
   .fill.over-gold { 
     background: linear-gradient(90deg, #ffd700, #ff8c00); 
-    box-shadow: 0 0 12px rgba(255, 215, 0, 0.4); z-index: 2;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    z-index: 2;
   }
-  .hp-label { position: absolute; width: 100%; text-align: center; color: #fff; font-size: 12px; line-height: 24px; font-weight: 900; z-index: 5; }
-  .heal-popup { position: absolute; top: -25px; left: 50%; transform: translateX(-50%); color: #00ff88; font-weight: 900; animation: lifestealFloat 0.8s ease-out forwards; }
-  @keyframes lifestealFloat { 0% { opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(-50%, -45px); opacity: 0; } }
-  .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
-  .count { font-size: 150px; color: #fff; }
-  h1.win { color: #00f2ff; font-size: 60px; }
-  h1.lose { color: #ff3e3e; font-size: 60px; }
-  button { padding: 15px 45px; background: #fff; border-radius: 50px; font-weight: 900; border: none; }
+  
+  .hp-label {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    color: #fff;
+    font-size: 12px;
+    line-height: 24px;
+    font-weight: 900;
+    z-index: 5;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+  
+  /* Lifesteal +5hp Animation */
+  .heal-popup {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #00ff88;
+    font-weight: 900;
+    font-size: 16px;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    pointer-events: none;
+    animation: lifestealFloat 0.8s ease-out forwards;
+  }
+  
+  @keyframes lifestealFloat {
+    0% { transform: translate(-50%, 0); opacity: 0; }
+    20% { opacity: 1; }
+    100% { transform: translate(-50%, -45px); opacity: 0; }
+  }
+  
+  /* Canvas Area */
+  canvas {
+    flex-grow: 1;
+    width: 100%;
+    max-width: 400px;
+    background: transparent;
+  }
+  
+  /* Game Over & Countdown Overlays */
+  .overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  
+  .count { 
+    font-size: 150px; 
+    color: #fff; 
+    font-weight: 900; 
+    text-shadow: 0 0 40px rgba(255,255,255,0.3);
+  }
+  
+  h1.win { 
+    color: #00f2ff; 
+    font-size: 64px; 
+    margin: 0;
+    text-shadow: 0 0 30px rgba(0, 242, 255, 0.6); 
+  }
+  
+  h1.lose { 
+    color: #ff3e3e; 
+    font-size: 64px; 
+    margin: 0;
+    text-shadow: 0 0 30px rgba(255, 62, 62, 0.6); 
+  }
+  
+  .score-summary {
+    margin: 20px 0;
+    text-align: center;
+    color: #ccc;
+  }
+  
+  .score-summary p {
+    font-size: 20px;
+    margin: 5px 0;
+    font-weight: 300;
+  }
+  
+  .grade {
+    font-size: 48px;
+    color: #ffd700;
+    margin: 10px 0;
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+  }
+  
+  /* Buttons */
+  button {
+    padding: 16px 48px;
+    font-size: 18px;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: 50px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+    margin-top: 20px;
+  }
+  
+  button:active {
+    transform: scale(0.95);
+    background: #ddd;
+  }
+  
+  /* Special Effects Classes used in JS */
+  .shake {
+    animation: shakeScreen 0.2s cubic-bezier(.36,.07,.19,.97) both;
+  }
+  
+  @keyframes shakeScreen {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+  }
