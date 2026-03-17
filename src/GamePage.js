@@ -100,7 +100,6 @@ export default function GamePage() {
 
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winnerRole = data.health.host <= 0 ? 'guest' : 'host';
-        // Calculate Winner Score
         const total = data.health[winnerRole] + data.shieldHealth[winnerRole] + data.boxHealth[winnerRole] + data.overHealth[winnerRole];
         setFinalScore(total);
         setGameOver(role === winnerRole ? "win" : "lose");
@@ -108,7 +107,7 @@ export default function GamePage() {
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
-  }, [roomId, role]);
+  }, [roomId, role]); // FIXED: roomId is now a dependency
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -147,7 +146,8 @@ export default function GamePage() {
         lastTapTime.current = now;
 
         let id = null;
-        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 60)) < 35) id = "wheel";
+        // Reduced wheel size and added space
+        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 60)) < 30) id = "wheel";
         else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 45) id = "shooter";
         else if (Math.hypot(tx - myShield.current.x, ty - myShield.current.y) < 50) id = "shield";
         else if (Math.hypot(tx - myBox.current.x, ty - myBox.current.y) < 50) id = "box";
@@ -157,7 +157,7 @@ export default function GamePage() {
       if (e.type === "touchmove") {
         const draggingId = activeTouches.current.get(t.identifier);
         if (draggingId === "wheel") {
-          myShooter.current.rot = Math.max(-1.2, Math.min(1.2, (tx - myShooter.current.x) / 35)); 
+          myShooter.current.rot = Math.max(-1.2, Math.min(1.2, (tx - myShooter.current.x) / 30)); 
         } else if (draggingId && !isCooking.current) {
           const target = draggingId === "shooter" ? myShooter : draggingId === "shield" ? myShield : myBox;
           target.current.x = Math.max(30, Math.min(W - 30, tx));
@@ -234,11 +234,13 @@ export default function GamePage() {
         ctx.stroke();
       }
 
+      // Shield Drag Handle (Small)
       ctx.globalAlpha = 0.15;
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 25, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1.0;
 
+      // Small Steering Wheel
       ctx.strokeStyle = "rgba(0, 242, 255, 0.4)";
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 60, 30, 0, Math.PI*2); ctx.stroke();
@@ -306,11 +308,9 @@ export default function GamePage() {
       
       {countdown !== null && countdown > 0 && <div className="overlay"><div className="count">{countdown}</div></div>}
 
-      {/* WIN / LOSE PAGE */}
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
-          
           {gameOver === 'win' && (
             <div className="score-summary">
               <p className="score-label">Total Assets Remaining</p>
@@ -318,9 +318,7 @@ export default function GamePage() {
               {finalScore >= 1000 && <h2 className="grade">A+</h2>}
             </div>
           )}
-
-          {gameOver === 'lose' && <p className="lose-subtext">LOSE</p>}
-
+          {gameOver === 'lose' && <p className="lose-subtext">ELIMINATED</p>}
           <button className="exit-btn" onClick={() => navigate("/second-page")}>EXIT</button>
         </div>
       )}
