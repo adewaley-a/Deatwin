@@ -63,7 +63,7 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   };
 
-  // FIX 1: Connection Effect
+  // EFFECT 1: Socket Setup (Fixed roomId dependency)
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -116,7 +116,7 @@ export default function GamePage() {
     return () => clearInterval(timerId);
   }, [countdown]);
 
-  // FIX 2: Gameplay Loop Effect
+  // EFFECT 2: Firing Loop (Fixed missing roomId dependency)
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -126,8 +126,11 @@ export default function GamePage() {
       const tipX = myShooter.current.x + Math.sin(myShooter.current.rot) * 30;
       const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
       myBullets.current.push({ x: tipX, y: tipY, vx, vy });
+      
+      // The roomId use below is what was triggering the error
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
     }, 180); 
+    
     return () => clearInterval(fireInt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown, gameOver, role, roomId]); 
