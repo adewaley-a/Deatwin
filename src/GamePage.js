@@ -63,6 +63,7 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   };
 
+  // FIX 1: Connection Effect
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -107,7 +108,7 @@ export default function GamePage() {
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
-  }, [roomId, role]); // FIXED: roomId is now a dependency
+  }, [roomId, role]); 
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -115,6 +116,7 @@ export default function GamePage() {
     return () => clearInterval(timerId);
   }, [countdown]);
 
+  // FIX 2: Gameplay Loop Effect
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -127,7 +129,8 @@ export default function GamePage() {
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
     }, 180); 
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, roomId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown, gameOver, role, roomId]); 
 
   const handleTouch = (e) => {
     if (!role || gameOver || (countdown !== null && countdown > 0)) return;
@@ -146,7 +149,6 @@ export default function GamePage() {
         lastTapTime.current = now;
 
         let id = null;
-        // Reduced wheel size and added space
         if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 60)) < 30) id = "wheel";
         else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 45) id = "shooter";
         else if (Math.hypot(tx - myShield.current.x, ty - myShield.current.y) < 50) id = "shield";
@@ -234,13 +236,11 @@ export default function GamePage() {
         ctx.stroke();
       }
 
-      // Shield Drag Handle (Small)
       ctx.globalAlpha = 0.15;
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 25, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1.0;
 
-      // Small Steering Wheel
       ctx.strokeStyle = "rgba(0, 242, 255, 0.4)";
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 60, 30, 0, Math.PI*2); ctx.stroke();
