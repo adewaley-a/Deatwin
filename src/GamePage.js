@@ -319,7 +319,7 @@ export default function GamePage() {
             </div>
           )}
 
-          {gameOver === 'lose' && <p className="lose-subtext">ELIMINATED</p>}
+          {gameOver === 'lose' && <p className="lose-subtext">LOST</p>}
 
           <button className="exit-btn" onClick={() => navigate("/second-page")}>EXIT</button>
         </div>
