@@ -1,117 +1,60 @@
 .game-container {
-  width: 100vw; 
-  height: 100vh; 
-  background: #000;
-  display: flex; 
-  flex-direction: column; 
-  align-items: center;
-  overflow: hidden; 
-  touch-action: none; 
-  font-family: 'Inter', sans-serif;
+  width: 100vw; height: 100vh; background: #000;
+  display: flex; flex-direction: column; align-items: center;
+  overflow: hidden; touch-action: none; font-family: 'Inter', sans-serif;
 }
 
 .header-dashboard {
-  width: 100%; 
-  display: flex; 
-  justify-content: space-between;
-  padding: 15px; 
-  background: #0a0a0a;
-  border-bottom: 1px solid #333;
-  box-sizing: border-box;
+  width: 100%; display: flex; justify-content: space-between;
+  padding: 10px 15px; background: #0a0a0a; border-bottom: 1px solid #333; box-sizing: border-box;
 }
 
-.stat-box { width: 45%; }
-.hp-wrapper { position: relative; width: 100%; }
+.stat-box { width: 45%; position: relative; }
 
-.lifesteal-text {
-  position: absolute;
-  left: 0;
-  top: -20px;
-  color: #00f2ff;
-  font-weight: 900;
-  font-size: 14px;
-  animation: floatUpFade 0.8s ease-out forwards;
-  text-shadow: 0 0 10px #00f2ff;
+/* New Labels */
+.player-tag {
+  font-size: 10px; font-weight: 900; letter-spacing: 2px;
+  margin-bottom: 4px; text-align: center;
 }
+.player-tag.you { color: #00f2ff; text-shadow: 0 0 5px #00f2ff; }
+.player-tag.opp { color: #ff3e3e; text-shadow: 0 0 5px #ff3e3e; }
 
-@keyframes floatUpFade {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-30px); opacity: 0; }
-}
+.hp-label { color: #fff; font-size: 10px; text-align: center; margin-top: 5px; font-weight: 900; opacity: 0.8; }
 
 .mini-hp {
-  width: 100%; 
-  height: 12px; 
-  background: #222; 
-  border-radius: 6px;
-  position: relative; 
-  overflow: hidden;
+  width: 100%; height: 12px; background: #222; border-radius: 6px;
+  position: relative; overflow: hidden; border: 1px solid #444;
 }
 
-.fill { height: 100%; position: absolute; left: 0; transition: width 0.2s ease; }
+.fill { height: 100%; position: absolute; left: 0; transition: width 0.3s ease; }
 .fill.blue { background: #00f2ff; box-shadow: 0 0 10px #00f2ff; }
 .fill.red { background: #ff3e3e; }
-.fill.over-gold { background: #ffd700; box-shadow: 0 0 15px #ffd700; z-index: 2; }
+.fill.over-gold { background: #ffd700; z-index: 2; }
+
+.hold-timer {
+  position: absolute; top: -25px; width: 100%; text-align: center;
+  color: #ffaa00; font-weight: 900; font-size: 12px; animation: pulse 0.5s infinite;
+}
+
+@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
 canvas { flex-grow: 1; width: 100%; max-width: 400px; }
 
 .overlay { 
-  position: absolute; 
-  inset: 0; 
-  background: rgba(0, 0, 0, 0.95); 
-  display: flex; 
-  flex-direction: column; 
-  justify-content: center; 
-  align-items: center; 
-  z-index: 100; 
-  text-align: center;
+  position: absolute; inset: 0; background: rgba(0, 0, 0, 0.9);
+  display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
 }
 
 .count { font-size: 120px; color: #fff; font-weight: 900; }
 
-h1.win { 
-  color: #00f2ff; 
-  font-size: 80px; 
-  text-shadow: 0 0 20px #00f2ff; 
-  margin-bottom: 10px;
-}
+h1.win { color: #00f2ff; font-size: 60px; text-shadow: 0 0 20px #00f2ff; }
+h1.lose { color: #ff3e3e; font-size: 60px; text-shadow: 0 0 20px #ff3e3e; }
 
-h1.lose { 
-  color: #ff3e3e; 
-  font-size: 80px; 
-  text-shadow: 0 0 20px #ff3e3e; 
-  margin-bottom: 10px;
-}
-
-.score-summary { color: #fff; margin: 20px 0; }
-.score-label { color: #888; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; }
-.score-value { font-size: 40px; font-weight: 900; margin: 5px 0; color: #fff; }
-
-.grade { 
-  font-size: 100px; 
-  color: #ffd700; 
-  margin: 0; 
-  text-shadow: 0 0 40px #ffd700; 
-  animation: pulseScale 1.5s infinite ease-in-out;
-}
-
-@keyframes pulseScale {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-.lose-subtext { color: #555; font-size: 18px; font-weight: 700; letter-spacing: 5px; margin-bottom: 30px; }
+.score-value { color: #888; margin: 10px 0 30px; font-weight: bold; letter-spacing: 2px; }
 
 .exit-btn { 
-  padding: 18px 60px; 
-  background: #fff; 
-  color: #000; 
-  border: none; 
-  border-radius: 40px; 
-  font-weight: 900; 
-  cursor: pointer;
-  font-size: 20px;
-  transition: transform 0.2s;
+  padding: 15px 40px; background: #fff; color: #000; border: none;
+  border-radius: 30px; font-weight: 900; cursor: pointer; transition: 0.2s;
 }
 
-.exit-btn:active { transform: scale(0.95); }
+.exit-btn:active { transform: scale(0.9); }
