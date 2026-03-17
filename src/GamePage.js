@@ -71,24 +71,26 @@ export default function GamePage() {
   }, []);
 
   useEffect(() => {
-    socket.current = io(SOCKET_URL, { transports: ['websocket'] });
-    socket.current.emit("join_game", { roomId });
-    socket.current.on("assign_role", (data) => setRole(data.role));
-    socket.current.on("start_countdown", () => setCountdown(3));
-    socket.current.on("opp_move_all", (data) => {
+    const s = io(SOCKET_URL, { transports: ['websocket'] });
+    socket.current = s;
+    s.emit("join_game", { roomId });
+    s.on("assign_role", (data) => setRole(data.role));
+    s.on("start_countdown", () => setCountdown(3));
+    s.on("opp_move_all", (data) => {
       enemyShooter.current = data.shooter;
       enemyShield.current = data.shield;
       enemyBox.current = data.box;
     });
-    socket.current.on("incoming_bullet", () => {
-      setMuzzleFlash(true); setTimeout(() => setMuzzleFlash(false), 50);
+    s.on("incoming_bullet", () => {
+      setMuzzleFlash(true); 
+      setTimeout(() => setMuzzleFlash(false), 50);
     });
-    socket.current.on("incoming_grenade", (g) => {
+    s.on("incoming_grenade", (g) => {
       activeGrenades.current.push({ ...g, isEnemy: true, timer: 120 });
     });
-    socket.current.on("spawn_sparks", (d) => createSparks(d.x, d.y, d.color));
+    s.on("spawn_sparks", (d) => createSparks(d.x, d.y, d.color));
     
-    socket.current.on("update_game_state", (data) => {
+    s.on("update_game_state", (data) => {
       setHealth(data.health); setOverHealth(data.overHealth);
       setBoxHealth(data.boxHealth); setShieldHealth(data.shieldHealth);
       setGrenades(data.grenades);
@@ -101,7 +103,7 @@ export default function GamePage() {
       }
     });
 
-    return () => socket.current.disconnect();
+    return () => s.disconnect();
   }, [roomId, role, playSound, createSparks]);
 
   useEffect(() => {
@@ -112,12 +114,12 @@ export default function GamePage() {
   }, [countdown]);
 
   const handleTouch = (e) => {
-    if (!role || gameOver || countdown > 0) return;
+    if (!role || gameOver || (countdown !== null && countdown > 0)) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const now = Date.now();
     const t = e.changedTouches[0];
     const tx = (t.clientX - rect.left) * (W / rect.width);
-    const ty = (t.clientY - rect.top) * (H / rect.height);
+    // Removed unused 'ty' to satisfy ESLint
 
     if (e.type === "touchstart") {
       if (now - lastTapTime.current < 300 && grenades[role] > 0) {
@@ -166,12 +168,22 @@ export default function GamePage() {
       }
       ctx.clearRect(0, 0, W, H);
 
-      setSparks(prev => prev.filter(s => s.life > 0).map(s => {
-        ctx.fillStyle = s.color; ctx.globalAlpha = s.life;
+      // Rendering Sparks (Now using the 'sparks' variable)
+      sparks.forEach((s) => {
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = s.life;
         ctx.fillRect(s.x, s.y, 3, 3);
-        return { ...s, x: s.x + s.vx, y: s.y + s.vy, life: s.life - 0.04 };
-      }));
+      });
+      setSparks(prev => prev.filter(s => s.life > 0).map(s => ({ ...s, x: s.x + s.vx, y: s.y + s.vy, life: s.life - 0.04 })));
       ctx.globalAlpha = 1;
+
+      // Muzzle Flash usage
+      if (muzzleFlash) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.beginPath();
+        ctx.arc(enemyShooter.current.x, enemyShooter.current.y - 20, 15, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       activeGrenades.current.forEach((g, i) => {
         g.timer--;
@@ -216,7 +228,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, gameOver, countdown, roomId]);
+  }, [role, opp, boxHealth, shieldHealth, screenShake, gameOver, countdown, roomId, muzzleFlash, sparks]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
