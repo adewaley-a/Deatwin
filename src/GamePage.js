@@ -63,7 +63,7 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   };
 
-  // EFFECT 1: Socket Setup (Fixed roomId dependency)
+  // EFFECT 1: SOCKET CONNECTION
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -108,6 +108,7 @@ export default function GamePage() {
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, role]); 
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function GamePage() {
     return () => clearInterval(timerId);
   }, [countdown]);
 
-  // EFFECT 2: Firing Loop (Fixed missing roomId dependency)
+  // EFFECT 2: FIRING LOOP (This was Line 290 causing the crash)
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -127,7 +128,7 @@ export default function GamePage() {
       const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
       myBullets.current.push({ x: tipX, y: tipY, vx, vy });
       
-      // The roomId use below is what was triggering the error
+      // Using roomId here requires it in the array below
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
     }, 180); 
     
@@ -321,7 +322,7 @@ export default function GamePage() {
               {finalScore >= 1000 && <h2 className="grade">A+</h2>}
             </div>
           )}
-          {gameOver === 'lose' && <p className="lose-subtext">LOSE</p>}
+          {gameOver === 'lose' && <p className="lose-subtext">ELIMINATED</p>}
           <button className="exit-btn" onClick={() => navigate("/second-page")}>EXIT</button>
         </div>
       )}
