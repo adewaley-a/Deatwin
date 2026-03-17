@@ -321,7 +321,7 @@ export default function GamePage() {
               {finalScore >= 1000 && <h2 className="grade">A+</h2>}
             </div>
           )}
-          {gameOver === 'lose' && <p className="lose-subtext">ELIMINATED</p>}
+          {gameOver === 'lose' && <p className="lose-subtext">LOSE</p>}
           <button className="exit-btn" onClick={() => navigate("/second-page")}>EXIT</button>
         </div>
       )}
