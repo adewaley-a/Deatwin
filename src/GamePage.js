@@ -63,7 +63,7 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   };
 
-  // EFFECT 1: SOCKET CONNECTION
+  // EFFECT: Socket Setup
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -108,7 +108,6 @@ export default function GamePage() {
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, role]); 
 
   useEffect(() => {
@@ -117,7 +116,7 @@ export default function GamePage() {
     return () => clearInterval(timerId);
   }, [countdown]);
 
-  // EFFECT 2: FIRING LOOP (This was Line 290 causing the crash)
+  // EFFECT: Firing Interval (Addressing Line 291 error)
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -127,11 +126,8 @@ export default function GamePage() {
       const tipX = myShooter.current.x + Math.sin(myShooter.current.rot) * 30;
       const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
       myBullets.current.push({ x: tipX, y: tipY, vx, vy });
-      
-      // Using roomId here requires it in the array below
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
     }, 180); 
-    
     return () => clearInterval(fireInt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown, gameOver, role, roomId]); 
