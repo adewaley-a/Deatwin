@@ -23,6 +23,7 @@ export default function GamePage() {
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [muzzleFlash, setMuzzleFlash] = useState(false);
+  const [lifestealPopups, setLifestealPopups] = useState([]);
 
   const W = 400, H = 700; 
   const myBox = useRef({ x: 60, y: 650 });
@@ -62,7 +63,6 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   };
 
-  // Socket setup
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -85,6 +85,13 @@ export default function GamePage() {
     
     socket.current.on("update_game_state", (data) => {
       if (data.targetHit) playSound(data.targetHit === 'box' || data.targetHit === 'shield' ? 'shield' : 'impact');
+      
+      if (data.targetHit === 'box' && data.attackerRole === role) {
+        const id = Date.now();
+        setLifestealPopups(prev => [...prev, { id }]);
+        setTimeout(() => setLifestealPopups(prev => prev.filter(p => p.id !== id)), 800);
+      }
+
       setHealth(data.health);
       setOverHealth(data.overHealth);
       setBoxHealth(data.boxHealth);
@@ -93,26 +100,22 @@ export default function GamePage() {
 
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winnerRole = data.health.host <= 0 ? 'guest' : 'host';
-        const total = data.health[winnerRole] + data.shieldHealth[winnerRole] + data.boxHealth[winnerRole];
+        // Calculate Winner Score
+        const total = data.health[winnerRole] + data.shieldHealth[winnerRole] + data.boxHealth[winnerRole] + data.overHealth[winnerRole];
         setFinalScore(total);
         setGameOver(role === winnerRole ? "win" : "lose");
       }
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [roomId, role]);
 
-  // FIX: Active Countdown Timer
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
-    const timerId = setInterval(() => {
-      setCountdown(c => c - 1);
-    }, 1000);
+    const timerId = setInterval(() => { setCountdown(c => c - 1); }, 1000);
     return () => clearInterval(timerId);
   }, [countdown]);
 
-  // Shooting loop
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -144,7 +147,7 @@ export default function GamePage() {
         lastTapTime.current = now;
 
         let id = null;
-        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 50)) < 45) id = "wheel";
+        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 60)) < 35) id = "wheel";
         else if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 45) id = "shooter";
         else if (Math.hypot(tx - myShield.current.x, ty - myShield.current.y) < 50) id = "shield";
         else if (Math.hypot(tx - myBox.current.x, ty - myBox.current.y) < 50) id = "box";
@@ -154,7 +157,7 @@ export default function GamePage() {
       if (e.type === "touchmove") {
         const draggingId = activeTouches.current.get(t.identifier);
         if (draggingId === "wheel") {
-          myShooter.current.rot = Math.max(-1.2, Math.min(1.2, (tx - myShooter.current.x) / 45)); 
+          myShooter.current.rot = Math.max(-1.2, Math.min(1.2, (tx - myShooter.current.x) / 35)); 
         } else if (draggingId && !isCooking.current) {
           const target = draggingId === "shooter" ? myShooter : draggingId === "shield" ? myShield : myBox;
           target.current.x = Math.max(30, Math.min(W - 30, tx));
@@ -198,21 +201,15 @@ export default function GamePage() {
         ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, Math.max(0, (val/max)*40), 4);
       };
 
-      // Grenades
       activeGrenades.current.forEach((g, i) => {
         g.x += g.vx; g.y += g.vy; g.timer--;
         ctx.fillStyle = "#ffaa00"; ctx.beginPath(); ctx.arc(g.x, g.y, 10, 0, Math.PI*2); ctx.fill();
-        if (g.timer <= 0) {
-            playSound('explosion');
-            activeGrenades.current.splice(i, 1);
-        }
+        if (g.timer <= 0) { playSound('explosion'); activeGrenades.current.splice(i, 1); }
       });
 
-      // Bullets
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        
         const distS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
         const angleToBullet = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
         const inArc = angleToBullet > Math.PI * 0.25 && angleToBullet < Math.PI * 0.75;
@@ -237,19 +234,15 @@ export default function GamePage() {
         ctx.stroke();
       }
 
-      // Drag circles
       ctx.globalAlpha = 0.15;
       ctx.fillStyle = "#fff";
-      ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 40, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(myBox.current.x, myBox.current.y, 40, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 25, 0, Math.PI*2); ctx.fill();
       ctx.globalAlpha = 1.0;
 
-      // Steering Wheel
       ctx.strokeStyle = "rgba(0, 242, 255, 0.4)";
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 50, 40, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 60, 30, 0, Math.PI*2); ctx.stroke();
 
-      // Muzzle Flash Tip
       if (muzzleFlash) {
         ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
         const tipX = myShooter.current.x + Math.sin(myShooter.current.rot) * 35;
@@ -257,7 +250,6 @@ export default function GamePage() {
         ctx.beginPath(); ctx.arc(tipX, tipY, 12, 0, Math.PI*2); ctx.fill();
       }
 
-      // BOXES
       if (boxHealth[role] > 0) {
         ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50);
         drawBar(myBox.current.x, myBox.current.y, boxHealth[role], 300, "#00f2ff");
@@ -267,13 +259,11 @@ export default function GamePage() {
         drawBar(enemyBox.current.x, enemyBox.current.y, boxHealth[opp], 300, "#ff3e3e");
       }
 
-      // SHIELDS + HEALTH BARS ON TOP
       const drawShield = (pos, color, hp, isEnemy) => {
         if (hp <= 0) return;
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath();
         const s = isEnemy ? 0.25 : -0.75; const e = isEnemy ? 0.75 : -0.25;
         ctx.arc(pos.x, pos.y, 60, Math.PI * s, Math.PI * e); ctx.stroke();
-        // Shield HP Bar
         drawBar(pos.x, pos.y, hp, 350, "#00ff88");
       };
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
@@ -292,7 +282,6 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash]);
 
   return (
@@ -303,28 +292,35 @@ export default function GamePage() {
           <span className="grenade-count">G: {grenades[opp]}</span>
         </div>
         <div className="stat-box">
-          <div className="mini-hp">
-            <div className="fill blue" style={{width: `${(health[role]/650)*100}%`}}/>
-            <div className="fill over-gold" style={{width: `${(overHealth[role]/200)*100}%`}}/>
+          <div className="hp-wrapper">
+             <div className="mini-hp">
+               <div className="fill blue" style={{width: `${(health[role]/650)*100}%`}}/>
+               <div className="fill over-gold" style={{width: `${(overHealth[role]/200)*100}%`}}/>
+             </div>
+             {lifestealPopups.map(p => (<span key={p.id} className="lifesteal-text">+5hp</span>))}
           </div>
           <span className="grenade-count">G: {grenades[role]}</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
-      {countdown !== null && countdown > 0 && (
-        <div className="overlay"><div className="count">{countdown}</div></div>
-      )}
+      
+      {countdown !== null && countdown > 0 && <div className="overlay"><div className="count">{countdown}</div></div>}
+
+      {/* WIN / LOSE PAGE */}
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
-          {gameOver === 'win' ? (
+          
+          {gameOver === 'win' && (
             <div className="score-summary">
-              <p>Total HP Assets: {finalScore}</p>
+              <p className="score-label">Total Assets Remaining</p>
+              <p className="score-value">{finalScore}</p>
               {finalScore >= 1000 && <h2 className="grade">A+</h2>}
             </div>
-          ) : (
-            <p className="lose-text">LOSE AND EXIT</p>
           )}
+
+          {gameOver === 'lose' && <p className="lose-subtext">ELIMINATED</p>}
+
           <button className="exit-btn" onClick={() => navigate("/second-page")}>EXIT</button>
         </div>
       )}
