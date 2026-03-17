@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
 import "./GamePage.css";
@@ -25,7 +25,10 @@ export default function GamePage() {
   const [muzzleFlash, setMuzzleFlash] = useState(false);
   const [lifestealPopups, setLifestealPopups] = useState([]);
 
-  const W = 400, H = 700; 
+  // Constants moved inside or handled to ensure stability
+  const W = 400;
+  const H = 700; 
+
   const myBox = useRef({ x: 60, y: 650 });
   const myShield = useRef({ x: 60, y: 580 });
   const myShooter = useRef({ x: 130, y: 630, rot: 0 });
@@ -44,11 +47,20 @@ export default function GamePage() {
 
   const opp = role === 'host' ? 'guest' : 'host';
 
-  const playSound = (type) => {
-    if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+  // Memoized to prevent re-triggering the socket useEffect
+  const playSound = useCallback((type) => {
+    if (!audioCtx.current) {
+      audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    // Resume context if suspended (browser security policy)
+    if (audioCtx.current.state === 'suspended') {
+      audioCtx.current.resume();
+    }
+
     const osc = audioCtx.current.createOscillator();
     const gain = audioCtx.current.createGain();
-    osc.connect(gain); gain.connect(audioCtx.current.destination);
+    osc.connect(gain); 
+    gain.connect(audioCtx.current.destination);
     
     if (type === 'explosion') {
       osc.type = 'sawtooth';
@@ -60,31 +72,33 @@ export default function GamePage() {
       osc.frequency.setValueAtTime(type === 'shield' ? 180 : 120, audioCtx.current.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.1);
     }
-    osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
-  };
+    osc.start(); 
+    osc.stop(audioCtx.current.currentTime + 0.6);
+  }, []);
 
   // Connection Logic
   useEffect(() => {
-    socket.current = io(SOCKET_URL, { transports: ['websocket'] });
-    socket.current.emit("join_game", { roomId });
+    const s = io(SOCKET_URL, { transports: ['websocket'] });
+    socket.current = s;
+    s.emit("join_game", { roomId });
     
-    socket.current.on("assign_role", (data) => setRole(data.role));
-    socket.current.on("start_countdown", () => setCountdown(3));
-    socket.current.on("opp_move_all", (data) => {
+    s.on("assign_role", (data) => setRole(data.role));
+    s.on("start_countdown", () => setCountdown(3));
+    s.on("opp_move_all", (data) => {
       enemyShooter.current = data.shooter;
       enemyShield.current = data.shield;
       enemyBox.current = data.box;
     });
 
-    socket.current.on("incoming_bullet", (b) => {
+    s.on("incoming_bullet", (b) => {
       enemyBullets.current.push(b);
       setMuzzleFlash(true);
       setTimeout(() => setMuzzleFlash(false), 50);
     });
 
-    socket.current.on("incoming_grenade", (g) => activeGrenades.current.push({ ...g, isEnemy: true }));
+    s.on("incoming_grenade", (g) => activeGrenades.current.push({ ...g, isEnemy: true }));
     
-    socket.current.on("update_game_state", (data) => {
+    s.on("update_game_state", (data) => {
       if (data.targetHit) playSound(data.targetHit === 'box' || data.targetHit === 'shield' ? 'shield' : 'impact');
       
       if (data.targetHit === 'box' && data.attackerRole === role) {
@@ -107,9 +121,8 @@ export default function GamePage() {
       }
     });
 
-    return () => { if (socket.current) socket.current.disconnect(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, role]); 
+    return () => { s.disconnect(); };
+  }, [roomId, role, playSound]); 
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -117,24 +130,26 @@ export default function GamePage() {
     return () => clearInterval(timerId);
   }, [countdown]);
 
-  // Firing Loop (Fix for Line 287)
+  // Firing Loop (Fixed for Netlify/ESLint)
   useEffect(() => {
-    if (countdown > 0 || gameOver || !role) return;
+    if (countdown > 0 || gameOver || !role || !socket.current) return;
+    
     const fireInt = setInterval(() => {
       if (isCooking.current) return; 
       const vx = Math.sin(myShooter.current.rot) * 18;
       const vy = -Math.cos(myShooter.current.rot) * 18;
       const tipX = myShooter.current.x + Math.sin(myShooter.current.rot) * 30;
       const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
+      
       myBullets.current.push({ x: tipX, y: tipY, vx, vy });
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
     }, 180); 
+    
     return () => clearInterval(fireInt);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countdown, gameOver, role, roomId]); 
+  }, [countdown, gameOver, role, roomId, W, H]); 
 
   const handleTouch = (e) => {
-    if (!role || gameOver || (countdown !== null && countdown > 0)) return;
+    if (!role || gameOver || (countdown !== null && countdown > 0) || !socket.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const now = Date.now();
 
@@ -189,8 +204,10 @@ export default function GamePage() {
   };
 
   useEffect(() => {
+    if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     let frame;
+    
     const render = () => {
       ctx.save();
       if (screenShake > 0) {
@@ -285,7 +302,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash]);
+  }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash, playSound, roomId, W, H]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
