@@ -63,7 +63,7 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   };
 
-  // EFFECT: Socket Setup
+  // Connection Logic
   useEffect(() => {
     socket.current = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current.emit("join_game", { roomId });
@@ -108,6 +108,7 @@ export default function GamePage() {
     });
 
     return () => { if (socket.current) socket.current.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, role]); 
 
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function GamePage() {
     return () => clearInterval(timerId);
   }, [countdown]);
 
-  // EFFECT: Firing Interval (Addressing Line 291 error)
+  // Firing Loop (Fix for Line 287)
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
