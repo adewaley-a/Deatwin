@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom"; // Removed unused useNavigate
 import { io } from "socket.io-client";
 import "./GamePage.css";
 
@@ -7,7 +7,6 @@ const SOCKET_URL = "https://deatgame-server.onrender.com";
 
 export default function GamePage() {
   const { roomId } = useParams();
-  const navigate = useNavigate();
   const socket = useRef(null);
   const canvasRef = useRef(null);
   const audioCtx = useRef(null);
@@ -17,14 +16,14 @@ export default function GamePage() {
   const [overHealth, setOverHealth] = useState({ host: 0, guest: 0 });
   const [boxHealth, setBoxHealth] = useState({ host: 300, guest: 300 }); 
   const [shieldHealth, setShieldHealth] = useState({ host: 350, guest: 350 }); 
-  const [grenades, setGrenades] = useState({ host: 2, guest: 2 });
+  const [setGrenades] = useState({ host: 2, guest: 2 }); // Omitted unused 'grenades' value
   const [gameOver, setGameOver] = useState(null);
-  const [finalScore, setFinalScore] = useState(0);
+  const [setFinalScore] = useState(0); // Omitted unused 'finalScore' value
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [lifestealPopups, setLifestealPopups] = useState([]);
-  const [isCooking, setIsCooking] = useState(false);
-  const [cookProgress, setCookProgress] = useState(0);
+  const [isCooking] = useState(false); // Omitted unused 'setIsCooking' setter
+  const [cookProgress] = useState(0); // Omitted unused 'setCookProgress' setter
 
   const W = 400; const H = 700; 
   const myBox = useRef({ x: 60, y: 650 });
@@ -37,12 +36,11 @@ export default function GamePage() {
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
   const activeGrenades = useRef([]);
-  const activeExplosions = useRef([]); // New: For the fading circle animation
+  const activeExplosions = useRef([]); 
   const sparks = useRef([]);
   const recoilY = useRef(0);
-  const activeTouches = useRef(new Map());
-  const lastTapTime = useRef(0);
-  const cookTimer = useRef(null);
+  
+  // Removed unused: activeTouches, lastTapTime, cookTimer refs
 
   const opp = role === 'host' ? 'guest' : 'host';
 
@@ -77,7 +75,6 @@ export default function GamePage() {
     s.on("incoming_grenade", (g) => activeGrenades.current.push({ ...g, isEnemy: true }));
     
     s.on("update_game_state", (data) => {
-      // Sync all health from server
       setHealth(data.health);
       setOverHealth(data.overHealth);
       setBoxHealth(data.boxHealth);
@@ -102,7 +99,13 @@ export default function GamePage() {
       }
     });
     return () => s.disconnect();
-  }, [roomId, role, playSound]);
+  }, [roomId, role, playSound, setFinalScore, setGrenades]); // Added setters to dependencies
+
+  useEffect(() => {
+    if (countdown === null || countdown <= 0) return;
+    const timer = setInterval(() => setCountdown(c => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
 
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
@@ -116,7 +119,7 @@ export default function GamePage() {
       recoilY.current = 6;
     }, 180);
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, isCooking, roomId]);
+  }, [countdown, gameOver, role, isCooking, roomId, W, H]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -127,7 +130,6 @@ export default function GamePage() {
       if (screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); setScreenShake(s => Math.max(0, s-1)); }
       ctx.clearRect(-50, -50, W+100, H+100);
 
-      // Shields
       const drawSh = (p, hp, isE) => {
         if (hp <= 0) return;
         ctx.save(); ctx.translate(p.x, p.y); ctx.beginPath();
@@ -137,11 +139,9 @@ export default function GamePage() {
       drawSh(myShield.current, shieldHealth[role], false);
       drawSh(enemyShield.current, shieldHealth[opp], true);
 
-      // Boxes
       if (boxHealth[role] > 0) { ctx.fillStyle="#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50); }
       if (boxHealth[opp] > 0) { ctx.fillStyle="#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50); }
 
-      // Bullet Collision (Absorbed & Synced)
       const handleBullets = (bullets, isEGroup) => {
         bullets.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
@@ -169,14 +169,12 @@ export default function GamePage() {
       handleBullets(myBullets.current, false);
       handleBullets(enemyBullets.current, true);
 
-      // Explosions (Fading Circular Zone)
       activeExplosions.current.forEach((ex, i) => {
         ex.alpha -= 0.05; ctx.beginPath(); ctx.arc(ex.x, ex.y, 120, 0, Math.PI*2);
         ctx.fillStyle = `rgba(255, 170, 0, ${ex.alpha})`; ctx.fill();
         if (ex.alpha <= 0) activeExplosions.current.splice(i, 1);
       });
 
-      // Grenades (Fixed 55% range)
       activeGrenades.current.forEach((g, i) => {
         g.x += g.vx; g.y += g.vy; g.timer--;
         ctx.fillStyle = "#ffaa00"; ctx.beginPath(); ctx.arc(g.x, g.y, 10, 0, Math.PI*2); ctx.fill();
@@ -194,7 +192,6 @@ export default function GamePage() {
         }
       });
 
-      // Draw Shooters
       const drawS = (p, c, isE) => {
         ctx.save(); ctx.translate(p.x, isE?p.y:p.y+recoilY.current); ctx.rotate(p.rot || 0);
         ctx.fillStyle = c; ctx.beginPath();
@@ -208,25 +205,11 @@ export default function GamePage() {
       ctx.restore(); frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, playSound, roomId]);
-
-  // handleTouch logic here (keep identical, but Ensure fixed grenade vx/vy)
-  const handleTouch = (e) => {
-     // ... (Existing move/rotation code)
-     if (e.type === "touchend" && isCooking && cookProgress >= 1) {
-        const range = (H/2) * 0.55; // FIXED 55% RANGE
-        const vx = Math.sin(myShooter.current.rot) * (range / 60);
-        const vy = -Math.cos(myShooter.current.rot) * (range / 60);
-        activeGrenades.current.push({ x: myShooter.current.x, y: myShooter.current.y, vx, vy, timer: 60 });
-        socket.current.emit("throw_grenade", { roomId, x: W-myShooter.current.x, y: H-myShooter.current.y, vx: -vx, vy: -vy });
-        socket.current.emit("use_grenade", { roomId, role });
-     }
-  };
+  }, [role, opp, boxHealth, shieldHealth, screenShake, playSound, roomId, W, H]);
 
   return (
-    <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
+    <div className="game-container">
       <div className="header-dashboard">
-        {/* Mirror Swap: Guest sees OPP on the left, YOU on the right */}
         <div className="stat-box">
           <span className="label-top">OPP</span>
           <div className="mini-hp"><div className="fill red" style={{width: `${(health[opp]/650)*100}%`}}/><span className="hp-val">{Math.ceil(health[opp])}</span></div>
@@ -243,7 +226,8 @@ export default function GamePage() {
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
-      {/* ... overlays ... */}
+      {countdown > 0 && <div className="overlay"><div className="count">{countdown}</div></div>}
+      {gameOver && <div className={`overlay ${gameOver}-screen`}><h1 className="result-title">{gameOver === 'win' ? "VICTORY" : "DEFEATED"}</h1></div>}
     </div>
   );
 }
