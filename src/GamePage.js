@@ -23,7 +23,6 @@ export default function GamePage() {
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [lifestealPopups, setLifestealPopups] = useState([]);
-  const [flashOpacity, setFlashOpacity] = useState(0);
   const [isCooking, setIsCooking] = useState(false);
   const [cookProgress, setCookProgress] = useState(0);
 
@@ -46,7 +45,6 @@ export default function GamePage() {
 
   const opp = role === 'host' ? 'guest' : 'host';
 
-  // WRAPPED IN USECALLBACK TO SATISFY ESLINT
   const playSound = useCallback((type) => {
     if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
@@ -55,8 +53,7 @@ export default function GamePage() {
     osc.connect(gain); gain.connect(audioCtx.current.destination);
     
     if (type === 'explosion') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(40, audioCtx.current.currentTime);
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(40, audioCtx.current.currentTime);
       gain.gain.setValueAtTime(0.5, audioCtx.current.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.6);
       setScreenShake(15);
@@ -72,12 +69,10 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   }, []);
 
-  // SOCKET CONNECTION USEEFFECT
   useEffect(() => {
     const s = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current = s;
     s.emit("join_game", { roomId });
-    
     s.on("assign_role", (data) => setRole(data.role));
     s.on("start_countdown", () => setCountdown(3));
     s.on("opp_move_all", (d) => { enemyShooter.current = d.shooter; enemyShield.current = d.shield; enemyBox.current = d.box; });
@@ -88,9 +83,7 @@ export default function GamePage() {
       if (data.targetHit) {
         playSound('metallic');
         const targetObj = data.targetHit === 'box' ? enemyBox.current : data.targetHit === 'shield' ? enemyShield.current : enemyShooter.current;
-        for (let i = 0; i < 6; i++) {
-          sparks.current.push({ x: targetObj.x, y: targetObj.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1.0, color: data.targetHit === 'box' ? '#00f2ff' : '#ffae00' });
-        }
+        for (let i = 0; i < 6; i++) sparks.current.push({ x: targetObj.x, y: targetObj.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1.0, color: data.targetHit === 'box' ? '#00f2ff' : '#ffae00' });
       }
       if (data.targetHit === 'box' && data.attackerRole === role) {
         const id = Date.now(); setLifestealPopups(p => [...p, { id }]);
@@ -104,7 +97,7 @@ export default function GamePage() {
       }
     });
     return () => s.disconnect();
-  }, [roomId, role, playSound]); // DEPS FIXED
+  }, [roomId, role, playSound]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -117,14 +110,14 @@ export default function GamePage() {
     const fireInt = setInterval(() => {
       if (isCooking) return;
       const rot = myShooter.current.rot;
-      const vx = Math.sin(rot) * 18; const vy = -Math.cos(rot) * 18;
       const tx = myShooter.current.x + Math.sin(rot) * 30; const ty = myShooter.current.y - Math.cos(rot) * 30;
+      const vx = Math.sin(rot) * 18; const vy = -Math.cos(rot) * 18;
       myBullets.current.push({ x: tx, y: ty, vx, vy });
       socket.current.emit("fire", { roomId, x: W - tx, y: H - ty, vx: -vx, vy: -vy });
-      recoilY.current = 6; setFlashOpacity(1);
+      recoilY.current = 6;
     }, 180);
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, isCooking, roomId, W, H]); // DEPS FIXED
+  }, [countdown, gameOver, role, isCooking, roomId, W, H]);
 
   const handleTouch = (e) => {
     if (!role || gameOver || countdown > 0) return;
@@ -142,7 +135,7 @@ export default function GamePage() {
         }
         lastTapTime.current = now;
         let id = null;
-        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 60)) < 35) id = "wheel";
+        if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 60)) < 25) id = "wheel";
         else if (distToS < 45) id = "shooter";
         else if (Math.hypot(tx - myShield.current.x, ty - myShield.current.y) < 50) id = "shield";
         else if (Math.hypot(tx - myBox.current.x, ty - myBox.current.y) < 50) id = "box";
@@ -182,7 +175,6 @@ export default function GamePage() {
     });
   };
 
-  // MAIN RENDER LOOP USEEFFECT
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
@@ -192,80 +184,63 @@ export default function GamePage() {
       if (screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); setScreenShake(s => Math.max(0, s-1)); }
       ctx.clearRect(-50, -50, W+100, H+100);
       if (recoilY.current > 0) recoilY.current *= 0.8;
-      if (flashOpacity > 0) setFlashOpacity(f => Math.max(0, f-0.2));
 
-      // Demarcation Line
-      ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke(); ctx.setLineDash([]);
+      // 1. Demarcation
+      ctx.strokeStyle = "rgba(255,255,255,0.1)"; ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke(); ctx.setLineDash([]);
 
-      const drawBar = (x, y, val, max, color) => {
-        ctx.fillStyle = "#111"; ctx.fillRect(x - 20, y - 40, 40, 4);
-        ctx.fillStyle = color; ctx.fillRect(x - 20, y - 40, Math.max(0, (val/max)*40), 4);
-        ctx.fillStyle = "#fff"; ctx.font = "bold 10px Inter"; ctx.textAlign="center"; ctx.fillText(Math.ceil(val), x, y-45);
+      // 2. Shield Logic
+      const drawShield = (p, hp, isE) => {
+        if (hp <= 0) return;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.beginPath();
+        const start = isE ? 0.2 * Math.PI : 1.2 * Math.PI;
+        const end = isE ? 0.8 * Math.PI : 1.8 * Math.PI;
+        ctx.arc(0, 0, 60, start, end); ctx.strokeStyle = isE ? "#ff3e3e" : "#00f2ff"; ctx.lineWidth = 5; ctx.stroke(); ctx.restore();
       };
+      drawShield(myShield.current, shieldHealth[role], false);
+      drawShield(enemyShield.current, shieldHealth[opp], true);
 
-      activeGrenades.current.forEach((g, i) => {
-        g.x += g.vx; g.y += g.vy; g.timer--;
-        ctx.fillStyle = "#ffaa00"; ctx.beginPath(); ctx.arc(g.x, g.y, 10, 0, Math.PI*2); ctx.fill();
-        if (g.timer <= 0) {
-          playSound('explosion'); playSound('vibrate');
-          if (!g.isEnemy) {
-            [{t:'player',p:enemyShooter.current},{t:'shield',p:enemyShield.current},{t:'box',p:enemyBox.current}].forEach(tgt => {
-              const d = Math.hypot(g.x-tgt.p.x, g.y-tgt.p.y);
-              if (d < 120) socket.current.emit("take_damage", { roomId, target: tgt.t, victimRole: opp, damageType: 'grenade', customDamage: Math.floor(70*(1-(d/120))) });
-            });
+      // 3. Boxes
+      if (boxHealth[role] > 0) { ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50); }
+      if (boxHealth[opp] > 0) { ctx.fillStyle = "#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50); }
+
+      // 4. Bullet Absorption & Precise Hits
+      const checkGroup = (bullets, isEGroup) => {
+        bullets.forEach((b, i) => {
+          b.x += b.vx; b.y += b.vy;
+          ctx.fillStyle = isEGroup ? "#ff3e3e" : "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
+          
+          const tgtRole = isEGroup ? role : opp;
+          const tgtB = isEGroup ? myBox.current : enemyBox.current;
+          const tgtS = isEGroup ? myShooter.current : enemyShooter.current;
+          const tgtSh = isEGroup ? myShield.current : enemyShield.current;
+
+          let hit = false;
+          if (boxHealth[tgtRole] > 0 && b.x > tgtB.x-25 && b.x < tgtB.x+25 && b.y > tgtB.y-25 && b.y < tgtB.y+25) { hit = true; if(!isEGroup) socket.current.emit("take_damage", { roomId, target: 'box', victimRole: tgtRole }); }
+          else if (shieldHealth[tgtRole] > 0) {
+            const dist = Math.hypot(b.x-tgtSh.x, b.y-tgtSh.y); const ang = Math.atan2(b.y-tgtSh.y, b.x-tgtSh.x);
+            const inArc = isEGroup ? (ang > 1.2*Math.PI || ang < -0.2*Math.PI) : (ang > 0.2*Math.PI && ang < 0.8*Math.PI);
+            if (dist < 65 && dist > 55 && inArc) { hit = true; if(!isEGroup) socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: tgtRole }); }
           }
-          activeGrenades.current.splice(i,1);
-        }
-      });
+          else if (Math.hypot(b.x-tgtS.x, b.y-tgtS.y) < 22) { hit = true; if(!isEGroup) socket.current.emit("take_damage", { roomId, target: 'player', victimRole: tgtRole }); }
 
-      myBullets.current.forEach((b, i) => {
-        b.x += b.vx; b.y += b.vy;
-        ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
-        const checkHit = (tgt, type, rad) => {
-          if (Math.hypot(b.x-tgt.x, b.y-tgt.y) < rad) {
-            socket.current.emit("take_damage", { roomId, target: type, victimRole: opp });
-            myBullets.current.splice(i,1);
-          }
-        };
-        if (shieldHealth[opp] > 0) {
-          const dS = Math.hypot(b.x-enemyShield.current.x, b.y-enemyShield.current.y);
-          const ang = Math.atan2(b.y-enemyShield.current.y, b.x-enemyShield.current.x);
-          if (dS < 65 && ang > Math.PI*0.25 && ang < Math.PI*0.75) { socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp }); myBullets.current.splice(i,1); }
-        }
-        checkHit(enemyBox.current, 'box', 30);
-        checkHit(enemyShooter.current, 'player', 25);
-        if (b.y < -50 || b.y > H + 50) myBullets.current.splice(i, 1);
-      });
+          if (hit) bullets.splice(i, 1);
+          else if (b.y < -50 || b.y > H + 50) bullets.splice(i, 1);
+        });
+      };
+      checkGroup(myBullets.current, false); checkGroup(enemyBullets.current, true);
 
-      enemyBullets.current.forEach((b, i) => {
-        b.x += b.vx; b.y += b.vy;
-        ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-        if (b.y < -50 || b.y > H + 50) enemyBullets.current.splice(i, 1);
-      });
+      // 5. Drag Handles
+      const drawH = (x,y,r) => { ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle="rgba(0,242,255,0.15)"; ctx.fill(); ctx.strokeStyle="rgba(0,242,255,0.4)"; ctx.stroke(); };
+      drawH(myShield.current.x, myShield.current.y, 35); drawH(myShooter.current.x, myShooter.current.y+60, 20);
 
-      if (isCooking) {
-        ctx.strokeStyle = "#ffaa00"; ctx.lineWidth = 4; ctx.beginPath();
-        ctx.arc(myShooter.current.x, myShooter.current.y, 45, -Math.PI/2, (-Math.PI/2) + (Math.PI*2*cookProgress)); ctx.stroke();
-      }
-
-      const drawH = (x,y) => { ctx.beginPath(); ctx.arc(x,y,35,0,Math.PI*2); ctx.fillStyle="rgba(0,242,255,0.15)"; ctx.fill(); ctx.strokeStyle="rgba(0,242,255,0.4)"; ctx.stroke(); };
-      drawH(myShield.current.x, myShield.current.y); drawH(myShooter.current.x, myShooter.current.y+60);
-
-      if (flashOpacity > 0) {
-        const tx = myShooter.current.x + Math.sin(myShooter.current.rot)*30; const ty = myShooter.current.y - Math.cos(myShooter.current.rot)*30;
-        ctx.fillStyle = `rgba(0,242,255,${flashOpacity})`; ctx.beginPath(); ctx.arc(tx,ty,20*(2-flashOpacity),0,Math.PI*2); ctx.fill();
-      }
-
-      if (boxHealth[role] > 0) { ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50); drawBar(myBox.current.x, myBox.current.y, boxHealth[role], 300, "#00f2ff"); }
-      if (boxHealth[opp] > 0) { ctx.fillStyle = "#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50); drawBar(enemyBox.current.x, enemyBox.current.y, boxHealth[opp], 300, "#ff3e3e"); }
-
+      // 6. Shooters
       const drawS = (p, c, isE) => {
         ctx.save(); ctx.translate(p.x, isE?p.y:p.y+recoilY.current); ctx.rotate(p.rot || 0); ctx.fillStyle = c; ctx.beginPath();
-        if (isE) { ctx.moveTo(0,30); ctx.lineTo(-15,-10); ctx.lineTo(15,-10); } else { ctx.moveTo(0,-30); ctx.lineTo(-15,10); ctx.lineTo(15,10); }
-        ctx.fill(); ctx.restore(); ctx.fillStyle="#fff"; ctx.font="bold 12px Inter"; ctx.textAlign="center"; ctx.fillText(isE?"OPP":"YOU", p.x, isE?p.y-20:p.y+45);
+        if (isE) { ctx.moveTo(0,25); ctx.lineTo(-15,-10); ctx.lineTo(15,-10); } else { ctx.moveTo(0,-25); ctx.lineTo(-15,10); ctx.lineTo(15,10); }
+        ctx.fill(); ctx.restore();
       };
       drawS(myShooter.current, "#00f2ff", false); drawS(enemyShooter.current, "#ff3e3e", true);
-      
+
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.life -= 0.04; ctx.globalAlpha = Math.max(0, s.life); ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, 2, 2);
         if (s.life <= 0) sparks.current.splice(i, 1);
@@ -274,16 +249,18 @@ export default function GamePage() {
       ctx.restore(); frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, flashOpacity, isCooking, cookProgress, playSound, roomId, W, H]); // DEPS FIXED
+  }, [role, opp, boxHealth, shieldHealth, screenShake, playSound, roomId, W, H]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
         <div className="stat-box">
+          <span className="label-top">OPP</span>
           <div className="mini-hp"><div className="fill red" style={{width: `${(health[opp]/650)*100}%`}}/><span className="hp-val">{Math.ceil(health[opp])}</span></div>
           <span className="grenade-count">G: {grenades[opp]}</span>
         </div>
         <div className="stat-box">
+          <span className="label-top you-label">YOU</span>
           <div className="hp-wrapper">
              <div className="mini-hp">
                <div className="fill blue" style={{width: `${(health[role]/650)*100}%`}}/><div className="fill over-gold" style={{width: `${(overHealth[role]/200)*100}%`}}/>
