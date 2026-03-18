@@ -23,11 +23,10 @@ export default function GamePage() {
   const [screenShake, setScreenShake] = useState(0);
   const [lifestealPopups, setLifestealPopups] = useState([]);
 
-  // Local State for Controls
   const myBox = useRef({ x: 60, y: 650 });
-  const myShield = useRef({ x: 200, y: 550 }); // Shield Handle Center
+  const myShield = useRef({ x: 200, y: 550 }); 
   const myShooter = useRef({ x: 200, y: 630, rot: 0 });
-  const steerWheel = useRef({ x: 320, y: 620, r: 45 }); // Steer Wheel Position
+  const steerWheel = useRef({ x: 320, y: 620, r: 45 }); 
   
   const enemyBox = useRef({ x: 340, y: 50 });
   const enemyShield = useRef({ x: 200, y: 150 });
@@ -35,7 +34,7 @@ export default function GamePage() {
 
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const activeExplosions = useRef([]); 
+  const activeExplosions = useRef([]); // NOW UTILIZED
   const recoilY = useRef(0);
   const activeTouches = useRef(new Map());
 
@@ -43,7 +42,6 @@ export default function GamePage() {
 
   const playSound = useCallback((type) => {
     if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
     const osc = audioCtx.current.createOscillator();
     const gain = audioCtx.current.createGain();
     osc.connect(gain); gain.connect(audioCtx.current.destination);
@@ -80,6 +78,13 @@ export default function GamePage() {
       setBoxHealth(data.boxHealth);
       setShieldHealth(data.shieldHealth);
       if (data.targetHit) playSound('metallic');
+
+      // Check if explosion was triggered by server
+      if (data.damageType === 'grenade') {
+        activeExplosions.current.push({ x: data.x, y: data.y, alpha: 0.8 });
+        playSound('explosion');
+      }
+
       if (data.targetHit === 'box' && data.attackerRole === role) {
         const id = Date.now(); setLifestealPopups(p => [...p, { id }]);
         setTimeout(() => setLifestealPopups(p => p.filter(x => x.id !== id)), 800);
@@ -97,7 +102,6 @@ export default function GamePage() {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  // Shooting loop
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
@@ -123,17 +127,12 @@ export default function GamePage() {
       const ty = ((t.clientY - rect.top) / rect.height) * H;
 
       if (e.type === "touchstart" || e.type === "touchmove") {
-        // Determine what the user is touching
         const distToSteer = Math.hypot(tx - steerWheel.current.x, ty - steerWheel.current.y);
         const distToShield = Math.hypot(tx - myShield.current.x, ty - myShield.current.y);
 
-        if (distToSteer < 60) {
-          activeTouches.current.set(t.identifier, "steer");
-        } else if (distToShield < 60) {
-          activeTouches.current.set(t.identifier, "shield");
-        } else if (ty > H / 2) {
-          activeTouches.current.set(t.identifier, "move");
-        }
+        if (distToSteer < 60) activeTouches.current.set(t.identifier, "steer");
+        else if (distToShield < 60) activeTouches.current.set(t.identifier, "shield");
+        else if (ty > H / 2) activeTouches.current.set(t.identifier, "move");
 
         const mode = activeTouches.current.get(t.identifier);
         if (mode === "steer") {
@@ -153,10 +152,7 @@ export default function GamePage() {
           box: { x: W - myBox.current.x, y: H - myBox.current.y }
         });
       }
-
-      if (e.type === "touchend" || e.type === "touchcancel") {
-        activeTouches.current.delete(t.identifier);
-      }
+      if (e.type === "touchend" || e.type === "touchcancel") activeTouches.current.delete(t.identifier);
     }
   };
 
@@ -166,54 +162,56 @@ export default function GamePage() {
     let frame;
     const render = () => {
       ctx.save();
-      if (screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); setScreenShake(s => Math.max(0, s-1)); }
+      if (screenShake > 0) { 
+        ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); 
+        setScreenShake(s => Math.max(0, s-0.5)); 
+      }
       ctx.clearRect(-50, -50, W+100, H+100);
 
-      // Draw My Shield & Handle
-      if (shieldHealth[role] > 0) {
+      // Draw Explosions (Utilizing activeExplosions)
+      activeExplosions.current.forEach((ex, i) => {
+        ex.alpha -= 0.02;
         ctx.beginPath();
-        ctx.arc(myShield.current.x, myShield.current.y, 40, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(0, 242, 255, 0.2)"; // Translucent Circle Handle
+        ctx.arc(ex.x, ex.y, 80, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 100, 0, ${ex.alpha})`;
         ctx.fill();
-        
-        ctx.beginPath();
-        ctx.arc(myShield.current.x, myShield.current.y - 40, 60, 1.2 * Math.PI, 1.8 * Math.PI);
+        if (ex.alpha <= 0) activeExplosions.current.splice(i, 1);
+      });
+
+      // UI Elements
+      if (shieldHealth[role] > 0) {
+        ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 40, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(0, 242, 255, 0.2)"; ctx.fill();
+        ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y - 40, 60, 1.2 * Math.PI, 1.8 * Math.PI);
         ctx.strokeStyle = "#00f2ff"; ctx.lineWidth = 5; ctx.stroke();
       }
 
-      // Draw My Steer Wheel
-      ctx.beginPath();
-      ctx.arc(steerWheel.current.x, steerWheel.current.y, steerWheel.current.r, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
-      
-      const knobX = steerWheel.current.x + Math.sin(myShooter.current.rot) * 30;
-      const knobY = steerWheel.current.y - Math.cos(myShooter.current.rot) * 30;
-      ctx.beginPath(); ctx.arc(knobX, knobY, 10, 0, Math.PI*2); ctx.fillStyle = "#00f2ff"; ctx.fill();
+      ctx.beginPath(); ctx.arc(steerWheel.current.x, steerWheel.current.y, steerWheel.current.r, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.stroke();
+      const kX = steerWheel.current.x + Math.sin(myShooter.current.rot) * 30;
+      const kY = steerWheel.current.y - Math.cos(myShooter.current.rot) * 30;
+      ctx.beginPath(); ctx.arc(kX, kY, 8, 0, Math.PI*2); ctx.fillStyle = "#00f2ff"; ctx.fill();
 
-      // Enemy Elements
+      // Enemy
       if (shieldHealth[opp] > 0) {
-        ctx.beginPath();
-        ctx.arc(enemyShield.current.x, enemyShield.current.y + 40, 60, 0.2 * Math.PI, 0.8 * Math.PI);
+        ctx.beginPath(); ctx.arc(enemyShield.current.x, enemyShield.current.y + 40, 60, 0.2 * Math.PI, 0.8 * Math.PI);
         ctx.strokeStyle = "#ff3e3e"; ctx.lineWidth = 5; ctx.stroke();
       }
 
-      // Draw Shooters
       const drawS = (p, c, isE) => {
         ctx.save(); ctx.translate(p.x, isE?p.y:p.y+recoilY.current); ctx.rotate(p.rot || 0);
         ctx.fillStyle = c; ctx.beginPath();
         if (isE) { ctx.moveTo(0,25); ctx.lineTo(-15,-10); ctx.lineTo(15,-10); } 
         else { ctx.moveTo(0,-25); ctx.lineTo(-15,10); ctx.lineTo(15,10); }
         ctx.fill(); ctx.restore();
-        if (recoilY.current > 0) recoilY.current -= 1;
+        if (recoilY.current > 0) recoilY.current -= 0.5;
       };
       drawS(myShooter.current, "#00f2ff", false);
       drawS(enemyShooter.current, "#ff3e3e", true);
 
-      // Boxes
       if (boxHealth[role] > 0) { ctx.fillStyle="#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50); }
       if (boxHealth[opp] > 0) { ctx.fillStyle="#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50); }
 
-      // Bullet Physics (Simplified for build stability)
       [myBullets.current, enemyBullets.current].forEach((bullets, isEGroup) => {
         bullets.forEach((b, i) => {
           b.x += b.vx; b.y += b.vy;
