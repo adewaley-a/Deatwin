@@ -4,6 +4,8 @@ import { io } from "socket.io-client";
 import "./GamePage.css";
 
 const SOCKET_URL = "https://deatgame-server.onrender.com"; 
+const W = 400; 
+const H = 700; 
 
 export default function GamePage() {
   const { roomId } = useParams();
@@ -16,16 +18,11 @@ export default function GamePage() {
   const [overHealth, setOverHealth] = useState({ host: 0, guest: 0 });
   const [boxHealth, setBoxHealth] = useState({ host: 300, guest: 300 }); 
   const [shieldHealth, setShieldHealth] = useState({ host: 350, guest: 350 }); 
-  const [, setGrenades] = useState({ host: 2, guest: 2 }); 
   const [gameOver, setGameOver] = useState(null);
-  const [, setFinalScore] = useState(0); 
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [lifestealPopups, setLifestealPopups] = useState([]);
-  const [isCooking] = useState(false); 
-  const [, setCookProgress] = useState(0); 
 
-  const W = 400; const H = 700; 
   const myBox = useRef({ x: 60, y: 650 });
   const myShield = useRef({ x: 60, y: 580 });
   const myShooter = useRef({ x: 130, y: 630, rot: 0 });
@@ -77,7 +74,6 @@ export default function GamePage() {
       setOverHealth(data.overHealth);
       setBoxHealth(data.boxHealth);
       setShieldHealth(data.shieldHealth);
-      setGrenades(data.grenades);
 
       if (data.targetHit) {
         playSound('metallic');
@@ -93,13 +89,11 @@ export default function GamePage() {
       }
 
       if (data.health.host <= 0 || data.health.guest <= 0) {
-        const winner = data.health.host <= 0 ? 'guest' : 'host';
-        setFinalScore(data.health[winner] + data.shieldHealth[winner] + data.boxHealth[winner] + data.overHealth[winner]);
-        setGameOver(role === winner ? "win" : "lose");
+        setGameOver(role === (data.health.host <= 0 ? 'guest' : 'host') ? "win" : "lose");
       }
     });
     return () => s.disconnect();
-  }, [roomId, role, playSound, setFinalScore, setGrenades]);
+  }, [roomId, role, playSound]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -110,7 +104,6 @@ export default function GamePage() {
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
-      if (isCooking) return;
       const rot = myShooter.current.rot;
       const tx = myShooter.current.x + Math.sin(rot) * 30; const ty = myShooter.current.y - Math.cos(rot) * 30;
       const vx = Math.sin(rot) * 18; const vy = -Math.cos(rot) * 18;
@@ -119,7 +112,7 @@ export default function GamePage() {
       recoilY.current = 6;
     }, 180);
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, isCooking, roomId, W, H]);
+  }, [countdown, gameOver, role, roomId]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -205,7 +198,7 @@ export default function GamePage() {
       ctx.restore(); frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, playSound, roomId, W, H]);
+  }, [role, opp, boxHealth, shieldHealth, screenShake, playSound, roomId]);
 
   return (
     <div className="game-container">
