@@ -46,6 +46,7 @@ export default function GamePage() {
 
   const opp = role === 'host' ? 'guest' : 'host';
 
+  // WRAPPED IN USECALLBACK TO SATISFY ESLINT
   const playSound = useCallback((type) => {
     if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
@@ -71,6 +72,7 @@ export default function GamePage() {
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.6);
   }, []);
 
+  // SOCKET CONNECTION USEEFFECT
   useEffect(() => {
     const s = io(SOCKET_URL, { transports: ['websocket'] });
     socket.current = s;
@@ -102,7 +104,7 @@ export default function GamePage() {
       }
     });
     return () => s.disconnect();
-  }, [roomId, role, playSound]);
+  }, [roomId, role, playSound]); // DEPS FIXED
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -122,7 +124,7 @@ export default function GamePage() {
       recoilY.current = 6; setFlashOpacity(1);
     }, 180);
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, isCooking]);
+  }, [countdown, gameOver, role, isCooking, roomId, W, H]); // DEPS FIXED
 
   const handleTouch = (e) => {
     if (!role || gameOver || countdown > 0) return;
@@ -180,6 +182,7 @@ export default function GamePage() {
     });
   };
 
+  // MAIN RENDER LOOP USEEFFECT
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
@@ -217,7 +220,7 @@ export default function GamePage() {
 
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
-        ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI * 2); ctx.fill();
         const checkHit = (tgt, type, rad) => {
           if (Math.hypot(b.x-tgt.x, b.y-tgt.y) < rad) {
             socket.current.emit("take_damage", { roomId, target: type, victimRole: opp });
@@ -271,7 +274,7 @@ export default function GamePage() {
       ctx.restore(); frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, flashOpacity, isCooking, cookProgress]);
+  }, [role, opp, boxHealth, shieldHealth, screenShake, flashOpacity, isCooking, cookProgress, playSound, roomId, W, H]); // DEPS FIXED
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
