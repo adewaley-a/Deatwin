@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useParams } from "react-router-dom"; // Removed unused useNavigate
+import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import "./GamePage.css";
 
@@ -16,14 +16,14 @@ export default function GamePage() {
   const [overHealth, setOverHealth] = useState({ host: 0, guest: 0 });
   const [boxHealth, setBoxHealth] = useState({ host: 300, guest: 300 }); 
   const [shieldHealth, setShieldHealth] = useState({ host: 350, guest: 350 }); 
-  const [setGrenades] = useState({ host: 2, guest: 2 }); // Omitted unused 'grenades' value
+  const [, setGrenades] = useState({ host: 2, guest: 2 }); 
   const [gameOver, setGameOver] = useState(null);
-  const [setFinalScore] = useState(0); // Omitted unused 'finalScore' value
+  const [, setFinalScore] = useState(0); 
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [lifestealPopups, setLifestealPopups] = useState([]);
-  const [isCooking] = useState(false); // Omitted unused 'setIsCooking' setter
-  const [cookProgress] = useState(0); // Omitted unused 'setCookProgress' setter
+  const [isCooking] = useState(false); 
+  const [, setCookProgress] = useState(0); 
 
   const W = 400; const H = 700; 
   const myBox = useRef({ x: 60, y: 650 });
@@ -40,8 +40,6 @@ export default function GamePage() {
   const sparks = useRef([]);
   const recoilY = useRef(0);
   
-  // Removed unused: activeTouches, lastTapTime, cookTimer refs
-
   const opp = role === 'host' ? 'guest' : 'host';
 
   const playSound = useCallback((type) => {
@@ -84,7 +82,9 @@ export default function GamePage() {
       if (data.targetHit) {
         playSound('metallic');
         const tgtPos = data.targetHit === 'box' ? (data.victimRole === role ? myBox.current : enemyBox.current) : (data.victimRole === role ? myShield.current : enemyShield.current);
-        for (let i = 0; i < 6; i++) sparks.current.push({ x: tgtPos.x, y: tgtPos.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1.0, color: '#00f2ff' });
+        if (tgtPos) {
+          for (let i = 0; i < 6; i++) sparks.current.push({ x: tgtPos.x, y: tgtPos.y, vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8, life: 1.0, color: '#00f2ff' });
+        }
       }
       
       if (data.targetHit === 'box' && data.attackerRole === role) {
@@ -99,7 +99,7 @@ export default function GamePage() {
       }
     });
     return () => s.disconnect();
-  }, [roomId, role, playSound, setFinalScore, setGrenades]); // Added setters to dependencies
+  }, [roomId, role, playSound, setFinalScore, setGrenades]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
