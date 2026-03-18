@@ -1,32 +1,32 @@
 .game-container {
   width: 100vw;
   height: 100vh;
-  background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+  background: #000;
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: hidden;
   touch-action: none;
   font-family: 'Inter', sans-serif;
-  user-select: none;
+  position: relative;
 }
 
 .header-dashboard {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  padding: 12px 20px;
-  background: rgba(10, 10, 10, 0.95);
-  border-bottom: 2px solid #222;
+  padding: 15px 20px;
+  background: rgba(10, 10, 10, 0.9);
+  border-bottom: 1px solid #333;
   box-sizing: border-box;
-  backdrop-filter: blur(10px);
   z-index: 10;
 }
 
 .stat-box {
-  width: 44%;
+  width: 42%;
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
 .stat-box:last-child {
@@ -34,23 +34,21 @@
 }
 
 .label-top {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
-  color: #ff3e3e;
+  color: #ff3e3e; /* Default Red for OPP */
   letter-spacing: 1px;
-  margin-bottom: 4px;
-  text-transform: uppercase;
 }
 
 .you-label {
-  color: #00f2ff;
+  color: #00f2ff; /* Blue for YOU */
 }
 
 .mini-hp {
   width: 100%;
-  height: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  height: 16px;
+  background: #222;
+  border-radius: 3px;
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -63,32 +61,24 @@
   color: #fff;
   font-weight: 900;
   font-size: 10px;
-  line-height: 14px;
+  line-height: 16px;
   z-index: 5;
-  text-shadow: 1px 1px 2px #000;
 }
 
 .fill {
   height: 100%;
   position: absolute;
   left: 0;
-  transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  transition: width 0.2s ease-out;
 }
 
-.fill.blue { background: linear-gradient(90deg, #00d2ff, #00f2ff); box-shadow: 0 0 15px rgba(0, 242, 255, 0.5); }
-.fill.red { background: linear-gradient(90deg, #ff3e3e, #ff6b6b); }
-.fill.over-gold { background: linear-gradient(90deg, #ffae00, #ffd700); z-index: 2; }
+.fill.blue { background: #00f2ff; box-shadow: 0 0 10px rgba(0, 242, 255, 0.5); }
+.fill.red { background: #ff3e3e; }
+.fill.over-gold { background: #ffae00; z-index: 2; }
 
 .hp-wrapper {
   position: relative;
   width: 100%;
-}
-
-.grenade-count {
-  font-size: 10px;
-  color: #888;
-  margin-top: 4px;
-  font-weight: 700;
 }
 
 .lifesteal-popup {
@@ -97,16 +87,16 @@
   right: 0;
   color: #00ff88;
   font-weight: 900;
-  font-size: 14px;
-  text-shadow: 0 0 8px rgba(0,255,136,0.6);
+  font-size: 16px;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
   animation: lifestealRise 0.8s ease-out forwards;
   pointer-events: none;
 }
 
 @keyframes lifestealRise {
   0% { transform: translateY(0) scale(0.5); opacity: 0; }
-  20% { transform: translateY(-5px) scale(1.1); opacity: 1; }
-  100% { transform: translateY(-30px) scale(1); opacity: 0; }
+  20% { transform: translateY(-10px) scale(1.2); opacity: 1; }
+  100% { transform: translateY(-40px) scale(1); opacity: 0; }
 }
 
 canvas {
@@ -114,8 +104,8 @@ canvas {
   width: 100%;
   max-width: 400px;
   max-height: 700px;
-  object-fit: contain;
-  image-rendering: crisp-edges;
+  background: #050505;
+  touch-action: none;
 }
 
 /* Overlays */
@@ -127,22 +117,24 @@ canvas {
   justify-content: center;
   align-items: center;
   z-index: 100;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
 }
 
-.win-screen { background: rgba(0, 15, 30, 0.95); border-top: 4px solid #00f2ff; }
-.lose-screen { background: rgba(30, 0, 0, 0.95); border-top: 4px solid #ff3e3e; }
+.count { font-size: 120px; font-weight: 900; color: #fff; }
 
-.result-title { font-size: 48px; font-weight: 900; color: #fff; margin-bottom: 10px; }
-.final-num { font-size: 64px; color: #fff; font-weight: 900; }
+.win-screen { background: rgba(0, 20, 40, 0.9); }
+.lose-screen { background: rgba(40, 0, 0, 0.9); }
+
+.result-title { font-size: 50px; font-weight: 900; color: #fff; letter-spacing: -2px; }
+.final-num { font-size: 70px; color: #fff; font-weight: 900; }
+
 .exit-btn {
-  margin-top: 30px;
-  padding: 16px 40px;
+  margin-top: 40px;
+  padding: 15px 50px;
   background: #fff;
   color: #000;
   border: none;
-  border-radius: 4px;
   font-weight: 900;
-  text-transform: uppercase;
-  cursor: pointer;
+  border-radius: 2px;
+  letter-spacing: 1px;
 }
