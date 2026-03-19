@@ -1,287 +1,129 @@
- /* --- Base Container Improvements --- */
-
- .game-container {
-
+.game-container {
   width: 100vw;
-
   height: 100vh;
-
   background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
-
   display: flex;
-
   flex-direction: column;
-
   align-items: center;
-
   overflow: hidden;
-
   touch-action: none;
-
-  font-family: 'Inter', -apple-system, sans-serif;
-
+  font-family: 'Inter', sans-serif;
   user-select: none;
-
 }
-
-
-
-/* --- Header & Stats --- */
 
 .header-dashboard {
-
   width: 100%;
-
   display: flex;
-
   justify-content: space-between;
-
-  padding: 15px 20px;
-
-  background: rgba(10, 10, 10, 0.9);
-
-  border-bottom: 2px solid #222;
-
+  padding: 10px 20px;
+  background: rgba(10, 10, 10, 0.95);
+  border-bottom: 2px solid #333;
   box-sizing: border-box;
-
-  backdrop-filter: blur(10px);
-
   z-index: 10;
-
 }
-
-
 
 .stat-box {
-
-  width: 42%;
-
+  width: 45%;
   display: flex;
-
   flex-direction: column;
-
-  gap: 8px;
-
+  gap: 4px;
+  position: relative;
 }
 
-
-
-.grenade-count {
-
-  color: #888;
-
-  font-size: 11px;
-
-  font-weight: 800;
-
+.label {
+  font-size: 10px;
+  font-weight: 900;
+  color: #666;
   letter-spacing: 1px;
-
-  text-transform: uppercase;
-
 }
-
-
-
-/* --- Health Bar Logic --- */
 
 .mini-hp {
-
   width: 100%;
-
-  height: 10px;
-
-  background: rgba(255, 255, 255, 0.05);
-
+  height: 16px;
+  background: #111;
   border-radius: 4px;
-
   position: relative;
-
   overflow: hidden;
-
-  border: 1px solid rgba(255, 255, 255, 0.1);
-
+  border: 1px solid #444;
 }
 
-
+.hp-num {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 16px;
+  z-index: 5;
+  text-shadow: 1px 1px #000;
+}
 
 .fill {
-
   height: 100%;
-
   position: absolute;
-
-  left: 0;
-
-  transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-
+  transition: width 0.3s ease-out;
 }
 
+.fill.blue { background: linear-gradient(to bottom, #00d2ff, #00f2ff); }
+.fill.red { background: linear-gradient(to bottom, #ff3e3e, #b31d1d); }
+.fill.over-gold { background: linear-gradient(to bottom, #ffd700, #ffae00); z-index: 2; }
 
-
-.fill.blue {
-
-  background: linear-gradient(90deg, #00d2ff, #00f2ff);
-
-  box-shadow: 0 0 15px rgba(0, 242, 255, 0.5);
-
+.lifesteal-text {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #00ff88;
+  font-weight: 900;
+  font-size: 14px;
+  animation: floatUp 0.8s ease-out forwards;
 }
 
-
-
-.fill.red {
-
-  background: linear-gradient(90deg, #ff3e3e, #ff6b6b);
-
-  box-shadow: 0 0 10px rgba(255, 62, 62, 0.3);
-
+@keyframes floatUp {
+  0% { transform: translate(-50%, 0); opacity: 1; }
+  100% { transform: translate(-50%, -40px); opacity: 0; }
 }
-
-
-
-.fill.over-gold {
-
-  background: linear-gradient(90deg, #ffae00, #ffd700);
-
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
-
-  z-index: 2;
-
-}
-
-
-
-/* --- Canvas & Game Area --- */
 
 canvas {
-
   flex-grow: 1;
-
   width: 100%;
-
   max-width: 400px;
-
   max-height: 700px;
-
-  object-fit: contain; /* Ensures the game maintains aspect ratio */
-
-  image-rendering: crisp-edges;
-
+  image-rendering: auto;
 }
-
-
-
-/* --- Overlays & UI --- */
 
 .overlay {
-
   position: absolute;
-
   inset: 0;
-
-  background: rgba(0, 0, 0, 0.9);
-
+  background: rgba(0,0,0,0.9);
   display: flex;
-
   flex-direction: column;
-
   justify-content: center;
-
   align-items: center;
-
   z-index: 100;
-
-  backdrop-filter: blur(8px);
-
 }
-
-
 
 .count {
-
-  font-size: 140px;
-
-  color: #fff;
-
+  font-size: 120px;
   font-weight: 900;
-
-  text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
-
+  color: #fff;
   animation: countIn 1s infinite;
-
 }
-
-
 
 @keyframes countIn {
-
-  0% { transform: scale(1.5); opacity: 0; }
-
-  20% { transform: scale(1); opacity: 1; }
-
+  0% { transform: scale(1.2); opacity: 0; }
+  50% { transform: scale(1); opacity: 1; }
   100% { transform: scale(0.8); opacity: 0; }
-
 }
-
-
 
 .exit-btn {
-
   margin-top: 20px;
-
-  padding: 16px 50px;
-
+  padding: 12px 40px;
   background: transparent;
-
   color: #fff;
-
   border: 2px solid #fff;
-
   border-radius: 4px;
-
-  font-weight: 900;
-
-  text-transform: uppercase;
-
-  letter-spacing: 2px;
-
+  font-weight: 800;
   cursor: pointer;
-
-  transition: all 0.2s;
-
-}
-
-
-
-.exit-btn:hover {
-
-  background: #fff;
-
-  color: #000;
-
-}
-
-
-
-/* Damage Shake for the whole container */
-
-.damage-shake {
-
-  animation: shake 0.2s ease-in-out;
-
-}
-
-
-
-@keyframes shake {
-
-  0% { transform: translateX(0); }
-
-  25% { transform: translateX(5px); }
-
-  50% { transform: translateX(-5px); }
-
-  75% { transform: translateX(5px); }
-
-  100% { transform: translateX(0); }
-
 }
