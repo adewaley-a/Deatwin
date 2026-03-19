@@ -1,31 +1,17 @@
 .game-container {
-  width: 100vw; height: 100vh; background: #000;
-  display: flex; flex-direction: column; align-items: center;
-  position: fixed; touch-action: none; overflow: hidden;
+  width: 100vw; height: 100vh; background: #000; overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; position: fixed; touch-action: none;
 }
-
-.header-dashboard {
-  width: 100%; display: flex; justify-content: space-between;
-  padding: 10px; background: #111; z-index: 10;
-}
-
-.mini-hp { width: 140px; height: 12px; background: #222; position: relative; border-radius: 4px; overflow: hidden; }
-.fill { height: 100%; position: absolute; transition: width 0.3s ease; }
-.fill.blue { background: #00f2ff; }
+.header-dashboard { width: 100%; display: flex; justify-content: space-between; padding: 10px; background: #111; z-index: 20; }
+.mini-hp { width: 140px; height: 12px; background: #222; position: relative; border-radius: 3px; overflow: hidden; }
+.fill { height: 100%; position: absolute; left: 0; transition: width 0.3s ease; }
+.fill.blue { background: #00f2ff; box-shadow: 0 0 8px #00f2ff; }
 .fill.red { background: #ff3e3e; }
 .fill.over-gold { background: #ffae00; z-index: 2; box-shadow: 0 0 10px #ffae00; }
-
-.lifesteal-popup {
-  position: absolute; top: -20px; right: 20px; color: #00ff88;
-  font-weight: 900; font-size: 14px; animation: floatUp 0.8s forwards;
-}
-
-@keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-30px); opacity: 0; } }
-
-.grenade-btn {
-  position: absolute; bottom: 20px; left: 20px;
-  width: 50px; height: 50px; border-radius: 50%;
-  background: #ffae00; color: #000; font-weight: 900; border: none;
-}
-
-canvas { flex-grow: 1; width: 100%; max-width: 400px; background: #050505; }
+.lifesteal-popup { position: absolute; top: -15px; right: 5px; color: #00ff88; font-weight: 900; animation: up 0.8s forwards; }
+@keyframes up { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-30px); opacity: 0; } }
+.g-btn { position: absolute; bottom: 30px; left: 20px; width: 50px; height: 50px; border-radius: 50%; background: #ffae00; color: #000; font-weight: 900; border: none; z-index: 30; box-shadow: 0 0 15px rgba(255,174,0,0.5); }
+.overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
+.count { font-size: 80px; color: #00f2ff; font-weight: 900; }
+.result { font-size: 50px; color: #fff; letter-spacing: 5px; }
+canvas { flex-grow: 1; width: 100%; max-width: 400px; background: radial-gradient(circle, #0d0d0d 0%, #000 100%); }
