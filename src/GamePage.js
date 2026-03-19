@@ -21,7 +21,7 @@ export default function GamePage() {
   const [shieldHealth, setShieldHealth] = useState({ host: 350, guest: 350 });
   const [grenades, setGrenades] = useState({ host: 2, guest: 2 });
   const [gameOver, setGameOver] = useState(null);
-  const [finalScore, setFinalScore] = useState(0);
+  const [finalScore, setFinalScore] = useState(0); // FIXED: Now used in UI
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [muzzleFlash, setMuzzleFlash] = useState(false);
@@ -65,9 +65,9 @@ export default function GamePage() {
       setScreenShake(15);
     } else if (type === 'hit') {
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, audioCtx.current.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(150, audioCtx.current.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.15, audioCtx.current.currentTime);
+      osc.frequency.setValueAtTime(1000, audioCtx.current.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, audioCtx.current.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.2, audioCtx.current.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.1);
     } else {
       osc.frequency.setValueAtTime(type === 'shield' ? 180 : 120, audioCtx.current.currentTime);
@@ -77,16 +77,16 @@ export default function GamePage() {
     osc.stop(audioCtx.current.currentTime + 0.6);
   }, []);
 
-  const createSparks = (x, y) => {
-    for (let i = 0; i < 6; i++) {
+  const createSparks = useCallback((x, y) => {
+    for (let i = 0; i < 8; i++) {
       sparks.current.push({
         x, y,
-        vx: (Math.random() - 0.5) * 8,
-        vy: (Math.random() - 0.5) * 8,
-        life: 25
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        life: 20
       });
     }
-  };
+  }, []);
 
   useEffect(() => {
     const s = io(SOCKET_URL, { transports: ['websocket'] });
@@ -134,7 +134,7 @@ export default function GamePage() {
     });
 
     return () => { s.disconnect(); };
-  }, [roomId, role, playSound, opp]);
+  }, [roomId, role, playSound]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -233,8 +233,8 @@ export default function GamePage() {
 
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.life--;
-        ctx.fillStyle = `rgba(255, 240, 100, ${s.life / 25})`;
-        ctx.fillRect(s.x, s.y, 2.5, 2.5);
+        ctx.fillStyle = `rgba(255, 255, 150, ${s.life / 20})`;
+        ctx.fillRect(s.x, s.y, 2, 2);
         if (s.life <= 0) sparks.current.splice(i, 1);
       });
 
@@ -283,8 +283,7 @@ export default function GamePage() {
         ctx.stroke();
       }
 
-      ctx.strokeStyle = "rgba(0, 242, 255, 0.4)";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(0, 242, 255, 0.4)"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 45, 20, 0, Math.PI*2); ctx.stroke();
 
       if (muzzleFlash) {
@@ -308,8 +307,7 @@ export default function GamePage() {
         ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath();
         const s = isEnemy ? 0.25 : -0.75; const e = isEnemy ? 0.75 : -0.25;
         ctx.arc(pos.x, pos.y, 60, Math.PI * s, Math.PI * e); ctx.stroke();
-        const barY = isEnemy ? pos.y - 70 : pos.y + 70;
-        drawBar(pos.x, barY, hp, 350, "#00ff88");
+        drawBar(pos.x, isEnemy ? pos.y - 70 : pos.y + 70, hp, 350, "#00ff88");
       };
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
@@ -327,7 +325,8 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash, playSound]);
+    // FIXED: roomId included in dependencies
+  }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash, playSound, createSparks, roomId]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
@@ -357,6 +356,8 @@ export default function GamePage() {
       {gameOver && (
         <div className="overlay">
           <h1 className={gameOver}>{gameOver.toUpperCase()}</h1>
+          {/* FIXED: Using finalScore here */}
+          <p style={{color: '#fff', fontSize: '18px'}}>Total Score: {finalScore}</p>
           <button className="exit-btn" onClick={() => navigate("/second-page")}>EXIT</button>
         </div>
       )}
