@@ -1,129 +1,59 @@
 .game-container {
-  width: 100vw;
-  height: 100vh;
+  width: 100vw; height: 100vh;
   background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow: hidden;
-  touch-action: none;
-  font-family: 'Inter', sans-serif;
-  user-select: none;
+  display: flex; flex-direction: column; align-items: center;
+  overflow: hidden; touch-action: none; font-family: 'Inter', sans-serif;
 }
 
 .header-dashboard {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 20px;
-  background: rgba(10, 10, 10, 0.95);
-  border-bottom: 2px solid #333;
-  box-sizing: border-box;
-  z-index: 10;
+  width: 100%; display: flex; justify-content: space-between;
+  padding: 10px 20px; background: rgba(10, 10, 10, 0.95);
+  border-bottom: 2px solid #333; box-sizing: border-box; z-index: 10;
 }
 
-.stat-box {
-  width: 45%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  position: relative;
-}
-
-.label {
-  font-size: 10px;
-  font-weight: 900;
-  color: #777;
-  letter-spacing: 1px;
-}
+.stat-box { width: 45%; display: flex; flex-direction: column; gap: 4px; position: relative; }
+.label { font-size: 10px; font-weight: 900; color: #777; letter-spacing: 1px; }
 
 .mini-hp {
-  width: 100%;
-  height: 16px;
-  background: #111;
-  border-radius: 4px;
-  position: relative;
-  overflow: hidden;
-  border: 1px solid #444;
+  width: 100%; height: 18px; background: #111; border-radius: 4px;
+  position: relative; overflow: hidden; border: 1px solid #444;
 }
 
 .hp-num {
-  position: absolute;
-  width: 100%;
-  text-align: center;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 16px;
-  z-index: 5;
-  text-shadow: 1px 1px #000;
+  position: absolute; width: 100%; text-align: center; color: #fff;
+  font-size: 11px; font-weight: 900; line-height: 18px; z-index: 5;
 }
 
-.fill {
-  height: 100%;
-  position: absolute;
-  transition: width 0.3s ease-out;
-}
-
-.fill.blue { background: linear-gradient(to bottom, #00d2ff, #00f2ff); }
-.fill.red { background: linear-gradient(to bottom, #ff3e3e, #b31d1d); }
-.fill.over-gold { background: linear-gradient(to bottom, #ffd700, #ffae00); z-index: 2; }
+.fill { height: 100%; position: absolute; transition: width 0.3s ease-out; }
+.fill.blue { background: #00f2ff; }
+.fill.red { background: #ff3e3e; }
+.fill.over-gold { background: #ffd700; z-index: 2; }
 
 .lifesteal-text {
-  position: absolute;
-  top: -15px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #00ff88;
-  font-weight: 900;
-  font-size: 14px;
-  animation: floatUp 0.8s ease-out forwards;
+  position: absolute; top: -15px; left: 50%; color: #00ff88;
+  font-weight: 900; animation: floatUp 0.8s ease-out forwards;
 }
 
-@keyframes floatUp {
-  0% { transform: translate(-50%, 0); opacity: 1; }
-  100% { transform: translate(-50%, -40px); opacity: 0; }
-}
+@keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-30px); } }
 
-canvas {
-  flex-grow: 1;
-  width: 100%;
-  max-width: 400px;
-  max-height: 700px;
-  image-rendering: auto;
-}
+canvas { flex-grow: 1; width: 100%; max-width: 400px; max-height: 700px; }
 
 .overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.9);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  z-index: 100;
+  position: absolute; inset: 0; background: rgba(0,0,0,0.95);
+  display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
 }
 
-.count {
-  font-size: 120px;
-  font-weight: 900;
-  color: #fff;
-  animation: countIn 1s infinite;
-}
+.status-title { font-size: 60px; font-weight: 900; margin: 0; }
+.win .status-title { color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
+.lose .status-title { color: #ff3e3e; text-shadow: 0 0 20px #ff3e3e; }
 
-@keyframes countIn {
-  0% { transform: scale(1.2); opacity: 0; }
-  50% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0.8); opacity: 0; }
-}
+.final-points { color: #fff; font-size: 24px; margin: 20px 0; font-weight: 700; }
+
+.count { font-size: 120px; font-weight: 900; color: #fff; animation: countIn 1s infinite; }
+@keyframes countIn { 0% { transform: scale(1.2); opacity: 0; } 50% { opacity: 1; } 100% { transform: scale(0.8); opacity: 0; } }
 
 .exit-btn {
-  margin-top: 20px;
-  padding: 12px 40px;
-  background: transparent;
-  color: #fff;
-  border: 2px solid #fff;
-  border-radius: 4px;
-  font-weight: 800;
-  cursor: pointer;
+  padding: 15px 50px; background: #fff; color: #000; border: none;
+  font-weight: 900; border-radius: 4px; cursor: pointer; transition: 0.2s;
 }
+.exit-btn:active { transform: scale(0.9); }
