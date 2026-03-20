@@ -23,8 +23,8 @@ export default function GamePage() {
   const [finalScore, setFinalScore] = useState(0);
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
-  const [muzzleFlash, setMuzzleFlash] = useState(false);
-  const [lifestealPopups, setLifestealPopups] = useState([]); // Now fully utilized
+  const [muzzleFlash, setMuzzleFlash] = useState(false); // Used in render loop below
+  const [lifestealPopups, setLifestealPopups] = useState([]);
 
   const myBox = useRef({ x: 60, y: 650 });
   const myShield = useRef({ x: 60, y: 580 });
@@ -106,14 +106,11 @@ export default function GamePage() {
       setHealth(data.health); setOverHealth(data.overHealth);
       setBoxHealth(data.boxHealth); setShieldHealth(data.shieldHealth);
       setGrenades(data.grenades);
-      
-      // Trigger Lifesteal Visuals
       if (data.targetHit === 'box') {
         const id = Date.now();
         setLifestealPopups(prev => [...prev, { id, attacker: data.attackerRole }]);
         setTimeout(() => setLifestealPopups(prev => prev.filter(p => p.id !== id)), 800);
       }
-
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winner = data.health.host <= 0 ? 'guest' : 'host';
         const total = data.health[winner] + data.shieldHealth[winner] + data.boxHealth[winner] + data.overHealth[winner];
@@ -122,7 +119,7 @@ export default function GamePage() {
       }
     });
     return () => s.disconnect();
-  }, [roomId, role]); // Simplified to satisfy ESLint while maintaining socket integrity
+  }, [roomId, role]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -140,6 +137,8 @@ export default function GamePage() {
       const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
       myBullets.current.push({ x: tipX, y: tipY, vx, vy });
       socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy });
+      setMuzzleFlash(true);
+      setTimeout(() => setMuzzleFlash(false), 50);
     }, 180);
     return () => clearInterval(fireInt);
   }, [countdown, gameOver, role, roomId]);
@@ -247,7 +246,6 @@ export default function GamePage() {
 
       ctx.fillStyle = "rgba(0, 242, 255, 0.2)"; ctx.beginPath(); 
       ctx.arc(myShield.current.x, myShield.current.y, 30, 0, Math.PI*2); ctx.fill();
-
       ctx.strokeStyle = "rgba(0, 242, 255, 0.4)"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 45, 20, 0, Math.PI*2); ctx.stroke();
 
@@ -263,18 +261,20 @@ export default function GamePage() {
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
       
-      const drawS = (p, c, isE) => {
-        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0); ctx.fillStyle = c;
+      const drawS = (p, c, isE, flash) => {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0); 
+        ctx.fillStyle = flash ? "#fff" : c; // Muzzle Flash logic satisfies ESLint
         ctx.beginPath(); if (isE) { ctx.moveTo(0,30); ctx.lineTo(-15,-10); ctx.lineTo(15,-10); }
         else { ctx.moveTo(0,-30); ctx.lineTo(-15,10); ctx.lineTo(15,10); }
         ctx.fill(); ctx.restore();
       };
-      drawS(myShooter.current, "#00f2ff", false); drawS(enemyShooter.current, "#ff3e3e", true);
+      drawS(myShooter.current, "#00f2ff", false, muzzleFlash); 
+      drawS(enemyShooter.current, "#ff3e3e", true, false);
       ctx.restore();
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, handleExplosion, createSparks, roomId]);
+  }, [role, opp, boxHealth, shieldHealth, screenShake, handleExplosion, createSparks, roomId, muzzleFlash]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
