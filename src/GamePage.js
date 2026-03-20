@@ -23,7 +23,7 @@ export default function GamePage() {
   const [finalScore, setFinalScore] = useState(0);
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
-  const [muzzleFlash, setMuzzleFlash] = useState(false); // Used in render loop below
+  const [muzzleFlash, setMuzzleFlash] = useState(false);
   const [lifestealPopups, setLifestealPopups] = useState([]);
 
   const myBox = useRef({ x: 60, y: 650 });
@@ -106,15 +106,17 @@ export default function GamePage() {
       setHealth(data.health); setOverHealth(data.overHealth);
       setBoxHealth(data.boxHealth); setShieldHealth(data.shieldHealth);
       setGrenades(data.grenades);
-      if (data.targetHit === 'box') {
-        const id = Date.now();
-        setLifestealPopups(prev => [...prev, { id, attacker: data.attackerRole }]);
-        setTimeout(() => setLifestealPopups(prev => prev.filter(p => p.id !== id)), 800);
+      
+      if (data.lastHit && data.lastHit.target === 'box') {
+        const id = Date.now() + Math.random();
+        setLifestealPopups(prev => [...prev, { id, attacker: data.lastHit.attackerRole }]);
+        setTimeout(() => setLifestealPopups(p => p.filter(x => x.id !== id)), 800);
       }
+
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winner = data.health.host <= 0 ? 'guest' : 'host';
-        const total = data.health[winner] + data.shieldHealth[winner] + data.boxHealth[winner] + data.overHealth[winner];
-        setFinalScore(Math.floor(total));
+        const score = data.health[winner] + data.overHealth[winner] + data.shieldHealth[winner];
+        setFinalScore(Math.floor(score));
         setGameOver(role === winner ? "win" : "lose");
       }
     });
@@ -199,6 +201,12 @@ export default function GamePage() {
       if (screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); setScreenShake(s => Math.max(0, s-1.5)); }
       ctx.clearRect(-50, -50, W+100, H+100);
 
+      sparks.current.forEach((s, i) => {
+        s.x += s.vx; s.y += s.vy; s.life--;
+        ctx.fillStyle = "#fff"; ctx.fillRect(s.x, s.y, 2, 2);
+        if (s.life <= 0) sparks.current.splice(i, 1);
+      });
+
       explosionAnims.current.forEach((a, i) => {
         a.r += 6; a.life--;
         ctx.strokeStyle = `rgba(255, 100, 0, ${a.life / 30})`; ctx.lineWidth = 4;
@@ -219,9 +227,7 @@ export default function GamePage() {
           ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
           if (!isEnemy) {
             const distS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
-            const ang = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
-            const inArc = ang > Math.PI * 0.25 && ang < Math.PI * 0.75;
-            if (shieldHealth[opp] > 0 && distS > 55 && distS < 65 && inArc) {
+            if (shieldHealth[opp] > 0 && distS > 55 && distS < 65) {
               createSparks(b.x, b.y); socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp, damageType: 'bullet' });
               bullets.splice(i, 1);
             } else if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 25 && Math.abs(b.y - enemyBox.current.y) < 25) {
@@ -252,6 +258,9 @@ export default function GamePage() {
       if (boxHealth[role] > 0) {
         ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50);
       }
+      if (boxHealth[opp] > 0) {
+        ctx.fillStyle = "#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50);
+      }
       
       const drawShield = (p, c, hp, isE) => {
         if (hp <= 0) return;
@@ -263,7 +272,7 @@ export default function GamePage() {
       
       const drawS = (p, c, isE, flash) => {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0); 
-        ctx.fillStyle = flash ? "#fff" : c; // Muzzle Flash logic satisfies ESLint
+        ctx.fillStyle = flash ? "#fff" : c;
         ctx.beginPath(); if (isE) { ctx.moveTo(0,30); ctx.lineTo(-15,-10); ctx.lineTo(15,-10); }
         else { ctx.moveTo(0,-30); ctx.lineTo(-15,10); ctx.lineTo(15,10); }
         ctx.fill(); ctx.restore();
@@ -300,7 +309,6 @@ export default function GamePage() {
         <div className={`overlay ${gameOver}`}>
           <h1 className="status-title">{gameOver === "win" ? "VICTORY" : "DEFEAT"}</h1>
           {gameOver === "win" && <div className="final-points">Survivor Points: {finalScore}</div>}
-          <p className="sub-text">{gameOver === "win" ? "Dominance established." : "Defeat is merely a detour."}</p>
           <button className="exit-btn" onClick={() => navigate("/second-page")}>REPLAY</button>
         </div>
       )}
