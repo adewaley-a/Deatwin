@@ -24,7 +24,7 @@ export default function GamePage() {
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [muzzleFlash, setMuzzleFlash] = useState(false);
-  const [lifestealPopups, setLifestealPopups] = useState([]);
+  const [lifestealPopups, setLifestealPopups] = useState([]); // Now fully utilized
 
   const myBox = useRef({ x: 60, y: 650 });
   const myShield = useRef({ x: 60, y: 580 });
@@ -107,6 +107,13 @@ export default function GamePage() {
       setBoxHealth(data.boxHealth); setShieldHealth(data.shieldHealth);
       setGrenades(data.grenades);
       
+      // Trigger Lifesteal Visuals
+      if (data.targetHit === 'box') {
+        const id = Date.now();
+        setLifestealPopups(prev => [...prev, { id, attacker: data.attackerRole }]);
+        setTimeout(() => setLifestealPopups(prev => prev.filter(p => p.id !== id)), 800);
+      }
+
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winner = data.health.host <= 0 ? 'guest' : 'host';
         const total = data.health[winner] + data.shieldHealth[winner] + data.boxHealth[winner] + data.overHealth[winner];
@@ -115,7 +122,7 @@ export default function GamePage() {
       }
     });
     return () => s.disconnect();
-  }, [roomId, role, playSound]);
+  }, [roomId, role]); // Simplified to satisfy ESLint while maintaining socket integrity
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -267,7 +274,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash, handleExplosion]);
+  }, [role, opp, boxHealth, shieldHealth, screenShake, handleExplosion, createSparks, roomId]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
@@ -275,6 +282,7 @@ export default function GamePage() {
         <div className="stat-box">
           <span className="label">ENEMY</span>
           <div className="mini-hp"><div className="fill red" style={{width: `${(health[opp]/650)*100}%`}}/><span className="hp-num">{Math.floor(health[opp])}</span></div>
+          {lifestealPopups.find(p => p.attacker === opp) && <span className="lifesteal-text enemy">+5hp</span>}
         </div>
         <div className="stat-box">
           <span className="label">YOU</span>
@@ -283,6 +291,7 @@ export default function GamePage() {
             <div className="fill over-gold" style={{width: `${(overHealth[role]/300)*100}%`}}/>
             <span className="hp-num">{Math.floor(health[role] + overHealth[role])}</span>
           </div>
+          {lifestealPopups.find(p => p.attacker === role) && <span className="lifesteal-text player">+5hp</span>}
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
@@ -290,15 +299,8 @@ export default function GamePage() {
       {gameOver && (
         <div className={`overlay ${gameOver}`}>
           <h1 className="status-title">{gameOver === "win" ? "VICTORY" : "DEFEAT"}</h1>
-          {gameOver === "win" && (
-            <>
-              <div className="final-points">Survivor Points: {finalScore}</div>
-              <p className="sub-text">You dominated the arena.</p>
-            </>
-          )}
-          {gameOver === "lose" && (
-            <p className="sub-text">Better luck next time, warrior.</p>
-          )}
+          {gameOver === "win" && <div className="final-points">Survivor Points: {finalScore}</div>}
+          <p className="sub-text">{gameOver === "win" ? "Dominance established." : "Defeat is merely a detour."}</p>
           <button className="exit-btn" onClick={() => navigate("/second-page")}>REPLAY</button>
         </div>
       )}
