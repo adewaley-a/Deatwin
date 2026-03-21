@@ -15,15 +15,16 @@
 .label { font-size: 10px; font-weight: 900; color: #777; letter-spacing: 1px; }
 
 .lifesteal-text {
-  position: absolute; font-weight: 900; font-size: 16px;
+  position: absolute; font-weight: 900; font-size: 18px;
   animation: floatUp 0.8s ease-out forwards; z-index: 20;
+  text-shadow: 0 0 10px rgba(255,255,255,0.5);
 }
-.lifesteal-text.player { color: #00f2ff; right: 10px; top: 20px; }
-.lifesteal-text.enemy { color: #ff3e3e; left: 10px; top: 20px; }
+.lifesteal-text.player { color: #00f2ff; right: 0; top: 10px; }
+.lifesteal-text.enemy { color: #ff3e3e; left: 0; top: 10px; }
 
 @keyframes floatUp {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-40px); opacity: 0; }
+  0% { transform: translateY(0); opacity: 1; scale: 1; }
+  100% { transform: translateY(-50px); opacity: 0; scale: 1.5; }
 }
 
 .mini-hp {
@@ -34,12 +35,13 @@
 .hp-num {
   position: absolute; width: 100%; text-align: center; color: #fff;
   font-size: 11px; font-weight: 900; line-height: 18px; z-index: 5;
+  text-shadow: 1px 1px 2px #000;
 }
 
 .fill { height: 100%; position: absolute; transition: width 0.3s ease-out; }
-.fill.blue { background: #00f2ff; }
-.fill.red { background: #ff3e3e; }
-.fill.over-gold { background: #ffd700; z-index: 2; }
+.fill.blue { background: #00f2ff; z-index: 1; }
+.fill.red { background: #ff3e3e; z-index: 1; }
+.fill.over-gold { background: #ffd700; z-index: 2; border-left: 1px solid rgba(255,255,255,0.3); }
 
 canvas { flex-grow: 1; width: 100%; max-width: 400px; max-height: 700px; }
 
@@ -49,6 +51,8 @@ canvas { flex-grow: 1; width: 100%; max-width: 400px; max-height: 700px; }
   text-align: center;
 }
 
+.count { font-size: 120px; font-weight: 900; color: #fff; }
+
 .status-title { font-size: 60px; font-weight: 900; margin: 0; }
 .win .status-title { color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
 .lose .status-title { color: #ff3e3e; text-shadow: 0 0 20px #ff3e3e; }
@@ -57,5 +61,5 @@ canvas { flex-grow: 1; width: 100%; max-width: 400px; max-height: 700px; }
 
 .exit-btn {
   padding: 15px 50px; background: #fff; color: #000; border: none;
-  font-weight: 900; border-radius: 4px; cursor: pointer;
+  font-weight: 900; border-radius: 4px; cursor: pointer; margin-top: 20px;
 }
