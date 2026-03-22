@@ -20,9 +20,7 @@ export default function GamePage() {
   const [boxHealth, setBoxHealth] = useState({ host: 300, guest: 300 });
   const [shieldHealth, setShieldHealth] = useState({ host: 350, guest: 350 });
   const [gameOver, setGameOver] = useState(null);
-  const [finalScore, setFinalScore] = useState(0);
   const [countdown, setCountdown] = useState(null);
-  const [screenShake, setScreenShake] = useState(0);
   const [lifestealPopups, setLifestealPopups] = useState([]);
 
   const myBox = useRef({ x: 60, y: 650 });
@@ -67,7 +65,9 @@ export default function GamePage() {
       enemyTarget.current = data;
     });
 
-    s.on("incoming_bullet", (b) => enemyBullets.current.push(b));
+    s.on("incoming_bullet", (b) => {
+      enemyBullets.current.push(b);
+    });
 
     s.on("update_game_state", (data) => {
       setHealth(data.health);
@@ -83,16 +83,15 @@ export default function GamePage() {
 
       if (data.health.host <= 0 || data.health.guest <= 0) {
         const winner = data.health.host <= 0 ? 'guest' : 'host';
-        setFinalScore(Math.floor(data.health[winner] + data.overHealth[winner]));
         setGameOver(role === winner ? "win" : "lose");
       }
     });
 
     return () => s.disconnect();
-  }, [roomId, role]);
+  }, [roomId, role]); // Dependencies fixed
 
   useEffect(() => {
-    if (countdown > 0 || gameOver || !role) return;
+    if (countdown === null || countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
       const tipX = myShooter.current.x + Math.sin(myShooter.current.rot) * 30;
       const tipY = myShooter.current.y - Math.cos(myShooter.current.rot) * 30;
@@ -105,7 +104,7 @@ export default function GamePage() {
   }, [countdown, gameOver, role, roomId]);
 
   const handleTouch = (e) => {
-    if (!role || gameOver || countdown > 0) return;
+    if (!role || gameOver || (countdown !== null && countdown > 0)) return;
     const rect = canvasRef.current.getBoundingClientRect();
     Array.from(e.changedTouches).forEach(t => {
       const tx = (t.clientX - rect.left) * (W / rect.width);
@@ -146,7 +145,6 @@ export default function GamePage() {
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // Interpolation
       enemyShooter.current.x = lerp(enemyShooter.current.x, enemyTarget.current.shooter.x, 0.2);
       enemyShooter.current.y = lerp(enemyShooter.current.y, enemyTarget.current.shooter.y, 0.2);
       enemyShooter.current.rot = lerp(enemyShooter.current.rot, enemyTarget.current.shooter.rot, 0.2);
@@ -155,7 +153,6 @@ export default function GamePage() {
       enemyBox.current.x = lerp(enemyBox.current.x, enemyTarget.current.box.x, 0.2);
       enemyBox.current.y = lerp(enemyBox.current.y, enemyTarget.current.box.y, 0.2);
 
-      // Sparks
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.life--;
         ctx.fillStyle = `rgba(255, 255, 255, ${s.life/20})`;
@@ -163,7 +160,6 @@ export default function GamePage() {
         if (s.life <= 0) sparks.current.splice(i, 1);
       });
 
-      // Bullets & Tight Hitbox Collision
       myBullets.current.forEach((b, i) => {
         b.x += b.vx; b.y += b.vy;
         ctx.fillStyle = "#00f2ff"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
@@ -171,13 +167,14 @@ export default function GamePage() {
         const distS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
         const angle = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
         
-        // Shield Hitbox: Distance check + Arc Angle Check (Approx 45 to 135 degrees for top shield)
         if (shieldHealth[opp] > 0 && distS < 65 && distS > 50 && angle > 0.6 && angle < 2.5) {
-          playSound('hit'); sparks.current.push({x: b.x, y: b.y, vx: (Math.random()-0.5)*10, vy: -5, life: 20});
+          playSound('hit'); 
+          sparks.current.push({x: b.x, y: b.y, vx: (Math.random()-0.5)*10, vy: -5, life: 20});
           socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp });
           myBullets.current.splice(i, 1);
         } else if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 25 && Math.abs(b.y - enemyBox.current.y) < 25) {
-          playSound('hit'); socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp });
+          playSound('hit'); 
+          socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp });
           myBullets.current.splice(i, 1);
         } else if (Math.hypot(b.x - enemyShooter.current.x, b.y - enemyShooter.current.y) < 25) {
           socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp });
@@ -190,7 +187,6 @@ export default function GamePage() {
         ctx.fillStyle = "#ff3e3e"; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
       });
 
-      // Rendering Elements (Mirrored via logic)
       if (boxHealth[role] > 0) { ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50); }
       if (boxHealth[opp] > 0) { ctx.fillStyle = "#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50); }
 
@@ -216,7 +212,7 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth]);
+  }, [role, opp, boxHealth, shieldHealth, playSound, roomId]); // Dependencies fixed
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
@@ -241,6 +237,7 @@ export default function GamePage() {
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
+      {countdown !== null && countdown > 0 && <div className="overlay"><div className="count">{countdown}</div></div>}
       {gameOver && (
         <div className={`overlay ${gameOver}`}>
           <h1 className="status-title">{gameOver === "win" ? "VICTORY" : "DEFEAT"}</h1>
