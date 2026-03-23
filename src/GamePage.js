@@ -6,7 +6,6 @@ import "./GamePage.css";
 const SOCKET_URL = "https://deatgame-server.onrender.com";
 const W = 400; const H = 700;
 
-// Helper for smooth movement
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
 export default function GamePage() {
@@ -29,17 +28,14 @@ export default function GamePage() {
   const [muzzleFlash, setMuzzleFlash] = useState(false);
   const [lifestealPopups, setLifestealPopups] = useState([]);
 
-  // Local positions
   const myBox = useRef({ x: 60, y: 650 });
   const myShield = useRef({ x: 60, y: 580 });
   const myShooter = useRef({ x: 130, y: 630, rot: 0 });
 
-  // Opponent positions (Actual for rendering)
   const enemyBox = useRef({ x: 340, y: 50 });
   const enemyShield = useRef({ x: 340, y: 120 });
   const enemyShooter = useRef({ x: 270, y: 70, rot: 0 });
 
-  // Interpolation Targets (Where the opponent should be)
   const enemyTarget = useRef({
     box: { x: 340, y: 50 },
     shield: { x: 340, y: 120 },
@@ -71,7 +67,6 @@ export default function GamePage() {
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.8);
       setScreenShake(20);
     } else if (type === 'hit') {
-      // Metallic hit sound
       osc.type = 'sine'; osc.frequency.setValueAtTime(1200, audioCtx.current.currentTime);
       osc.frequency.exponentialRampToValueAtTime(400, audioCtx.current.currentTime + 0.1);
       gain.gain.setValueAtTime(0.2, audioCtx.current.currentTime);
@@ -119,7 +114,6 @@ export default function GamePage() {
     s.on("start_countdown", () => setCountdown(3));
     
     s.on("opp_move_all", (data) => {
-      // Set targets for interpolation instead of snapping
       enemyTarget.current = data;
     });
 
@@ -230,6 +224,20 @@ export default function GamePage() {
     const ctx = canvasRef.current.getContext("2d");
     let frame;
 
+    const drawMiniBar = (x, y, current, max, color) => {
+      if (current <= 0) return;
+      const barW = 40;
+      const barH = 5;
+      ctx.fillStyle = "#111";
+      ctx.fillRect(x - barW / 2, y - 45, barW, barH);
+      ctx.fillStyle = color;
+      ctx.fillRect(x - barW / 2, y - 45, (current / max) * barW, barH);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 10px Inter";
+      ctx.textAlign = "center";
+      ctx.fillText(Math.floor(current), x, y - 50);
+    };
+
     const render = () => {
       ctx.save();
       if (screenShake > 0) { 
@@ -238,7 +246,6 @@ export default function GamePage() {
       }
       ctx.clearRect(-50, -50, W+100, H+100);
 
-      // Smooth interpolation for enemy (Lerp)
       enemyShooter.current.x = lerp(enemyShooter.current.x, enemyTarget.current.shooter.x, 0.2);
       enemyShooter.current.y = lerp(enemyShooter.current.y, enemyTarget.current.shooter.y, 0.2);
       enemyShooter.current.rot = lerp(enemyShooter.current.rot, enemyTarget.current.shooter.rot, 0.2);
@@ -276,31 +283,22 @@ export default function GamePage() {
 
           if (!isEnemy) {
             const distS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
-            // CORRECTION: Check shield first to prevent passing through
             if (shieldHealth[opp] > 0 && distS < 60) {
               createSparks(b.x, b.y); 
               socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp, damageType: 'bullet' });
-              bullets.splice(i, 1);
-              continue;
+              bullets.splice(i, 1); continue;
             } 
-            
-            // Check box
             if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 25 && Math.abs(b.y - enemyBox.current.y) < 25) {
               createSparks(b.x, b.y); 
               socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp, damageType: 'bullet' });
-              bullets.splice(i, 1);
-              continue;
+              bullets.splice(i, 1); continue;
             } 
-            
-            // Check player
             if (Math.hypot(b.x - enemyShooter.current.x, b.y - enemyShooter.current.y) < 25) {
               createSparks(b.x, b.y); 
               socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp, damageType: 'bullet' });
-              bullets.splice(i, 1);
-              continue;
+              bullets.splice(i, 1); continue;
             }
           }
-
           if (b.y < -50 || b.y > H + 50) bullets.splice(i, 1);
         }
       };
@@ -313,7 +311,6 @@ export default function GamePage() {
         ctx.stroke();
       }
 
-      // Render placeholders/assist UI
       ctx.fillStyle = "rgba(0, 242, 255, 0.1)"; ctx.beginPath(); 
       ctx.arc(myShield.current.x, myShield.current.y, 30, 0, Math.PI*2); ctx.fill();
       ctx.strokeStyle = "rgba(0, 242, 255, 0.4)"; ctx.lineWidth = 2;
@@ -321,15 +318,18 @@ export default function GamePage() {
 
       if (boxHealth[role] > 0) {
         ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50);
+        drawMiniBar(myBox.current.x, myBox.current.y, boxHealth[role], 300, "#00f2ff");
       }
       if (boxHealth[opp] > 0) {
         ctx.fillStyle = "#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50);
+        drawMiniBar(enemyBox.current.x, enemyBox.current.y, boxHealth[opp], 300, "#ff3e3e");
       }
       
       const drawShield = (p, c, hp, isE) => {
         if (hp <= 0) return;
         ctx.strokeStyle = c; ctx.lineWidth = 5; ctx.beginPath();
         ctx.arc(p.x, p.y, 60, isE ? Math.PI*0.25 : -Math.PI*0.75, isE ? Math.PI*0.75 : -Math.PI*0.25); ctx.stroke();
+        drawMiniBar(p.x, p.y, hp, 350, c);
       };
       drawShield(myShield.current, "#00f2ff", shieldHealth[role], false);
       drawShield(enemyShield.current, "#ff3e3e", shieldHealth[opp], true);
@@ -352,7 +352,7 @@ export default function GamePage() {
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
-        {/* ENEMY DASHBOARD - Added Overhealth Visibility */}
+        {/* ENEMY DASHBOARD - Mirroring Fix */}
         <div className="stat-box">
           <span className="label">ENEMY</span>
           <div className="mini-hp">
@@ -363,7 +363,7 @@ export default function GamePage() {
           {lifestealPopups.find(p => p.attacker === opp) && <span className="lifesteal-text enemy">+5hp</span>}
         </div>
 
-        {/* PLAYER DASHBOARD */}
+        {/* PLAYER DASHBOARD - Mirroring Fix */}
         <div className="stat-box">
           <span className="label">YOU</span>
           <div className="mini-hp">
