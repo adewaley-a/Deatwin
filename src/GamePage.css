@@ -1,70 +1,68 @@
 .game-container {
-  width: 100vw; height: 100vh;
-  background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+  width: 100vw; height: 100vh; background: #000;
   display: flex; flex-direction: column; align-items: center;
   overflow: hidden; touch-action: none; font-family: 'Inter', sans-serif;
-  transition: background-color 0.1s ease;
+  transition: background 0.15s ease;
 }
 
-/* Green Flash Effect */
-.game-container.lifesteal-active {
-  background: radial-gradient(circle at center, rgba(0, 255, 100, 0.2) 0%, #000 100%);
+.game-container.lifesteal-active { 
+  background: radial-gradient(circle, #003311 0%, #000 100%); 
 }
 
 .header-dashboard {
   width: 100%; display: flex; justify-content: space-between;
-  padding: 10px 20px; background: rgba(10, 10, 10, 0.95);
-  border-bottom: 2px solid #333; box-sizing: border-box; z-index: 10;
+  padding: 10px 20px; background: #0a0a0a; border-bottom: 2px solid #333; box-sizing: border-box;
 }
 
 .stat-box { width: 45%; display: flex; flex-direction: column; gap: 4px; position: relative; }
-.label { font-size: 10px; font-weight: 900; color: #777; letter-spacing: 1px; }
+.label { font-size: 10px; font-weight: 900; color: #555; letter-spacing: 1px; }
 
-.lifesteal-text {
-  position: absolute; font-weight: 900; font-size: 20px;
-  animation: floatUp 0.8s ease-out forwards; z-index: 20;
-  text-shadow: 0 0 10px rgba(255,255,255,0.5);
+.mini-hp { 
+  width: 100%; height: 18px; background: #111; border-radius: 4px; 
+  position: relative; overflow: hidden; border: 1px solid #444; 
 }
 
-/* Lifesteal is green for everyone when it happens */
-.lifesteal-text.player { color: #00ff66; right: 0; top: 10px; }
-.lifesteal-text.enemy { color: #00ff66; left: 0; top: 10px; }
-
-@keyframes floatUp {
-  0% { transform: translateY(0); opacity: 1; scale: 1; }
-  100% { transform: translateY(-60px); opacity: 0; scale: 1.8; }
+.hp-num { 
+  position: absolute; width: 100%; text-align: center; color: #fff; 
+  font-size: 11px; font-weight: 900; line-height: 18px; z-index: 5; 
 }
 
-.mini-hp {
-  width: 100%; height: 18px; background: #111; border-radius: 4px;
-  position: relative; overflow: hidden; border: 1px solid #444;
+.fill { height: 100%; position: absolute; transition: width 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67); }
+.fill.blue { background: #00f2ff; box-shadow: 0 0 10px #00f2ff; }
+.fill.red { background: #ff3e3e; box-shadow: 0 0 10px #ff3e3e; }
+.fill.over-gold { background: #ffd700; z-index: 2; border-left: 1px solid rgba(255,255,255,0.5); }
+
+.lifesteal-text { 
+  position: absolute; font-weight: 900; font-size: 24px; color: #00ff66; 
+  animation: floatUp 0.8s forwards; z-index: 20; text-shadow: 0 0 10px #00ff66;
 }
 
-.hp-num {
-  position: absolute; width: 100%; text-align: center; color: #fff;
-  font-size: 11px; font-weight: 900; line-height: 18px; z-index: 5;
-  text-shadow: 1px 1px 2px #000;
+@keyframes floatUp { 
+  0% { transform: translateY(0) scale(1); opacity: 1; } 
+  100% { transform: translateY(-70px) scale(1.5); opacity: 0; } 
 }
 
-.fill { height: 100%; position: absolute; transition: width 0.3s ease-out; }
-.fill.blue { background: #00f2ff; z-index: 1; }
-.fill.red { background: #ff3e3e; z-index: 1; }
-.fill.over-gold { background: #ffd700; z-index: 2; border-left: 1px solid rgba(255,255,255,0.3); }
+canvas { flex-grow: 1; width: 100%; max-width: 400px; touch-action: none; }
 
-canvas { flex-grow: 1; width: 100%; max-width: 400px; max-height: 700px; }
-
-.overlay {
-  position: absolute; inset: 0; background: rgba(0,0,0,0.95);
-  display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
+.overlay { 
+  position: absolute; inset: 0; background: rgba(0,0,0,0.9); 
+  display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; 
 }
 
-.count { font-size: 120px; font-weight: 900; color: #fff; }
-.status-title { font-size: 60px; font-weight: 900; margin: 0; }
-.win .status-title { color: #00f2ff; text-shadow: 0 0 20px #00f2ff; }
-.lose .status-title { color: #ff3e3e; text-shadow: 0 0 20px #ff3e3e; }
-.final-points { color: #fff; font-size: 28px; margin: 10px 0; font-weight: 700; }
+.count { font-size: 120px; color: #fff; font-weight: 900; font-style: italic; }
 
-.exit-btn {
-  padding: 15px 50px; background: #fff; color: #000; border: none;
-  font-weight: 900; border-radius: 4px; cursor: pointer; margin-top: 20px;
+.end-screen.win { background: radial-gradient(circle, #001a1a 0%, #000 100%); }
+.end-screen.lose { background: radial-gradient(circle, #1a0000 0%, #000 100%); }
+
+.status-title { font-size: 60px; font-weight: 900; letter-spacing: -2px; margin: 0; }
+.win .status-title { color: #00f2ff; text-shadow: 0 0 30px rgba(0,242,255,0.5); }
+.lose .status-title { color: #ff3e3e; text-shadow: 0 0 30px rgba(255,62,62,0.5); }
+
+.final-points { font-size: 20px; color: #fff; margin-top: 10px; font-weight: 600; }
+.loser-text { color: #555; }
+
+.exit-btn { 
+  padding: 15px 50px; background: #fff; border: none; font-weight: 900; 
+  border-radius: 4px; margin-top: 30px; cursor: pointer; transition: 0.2s;
 }
+.exit-btn:active { transform: scale(0.9); }
