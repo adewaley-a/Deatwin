@@ -4,7 +4,8 @@ import { io } from "socket.io-client";
 import "./GamePage.css";
 
 const SOCKET_URL = "https://deatgame-server.onrender.com";
-const W = 400; const H = 700;
+const W = 400; 
+const H = 700;
 const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
 export default function GamePage() {
@@ -68,7 +69,6 @@ export default function GamePage() {
   const handleExplosion = useCallback((x, y) => {
     playSound('explosion');
     explosionAnims.current.push({ x, y, r: 0, life: 30 });
-    // Check all locally owned elements for radial damage
     const targets = [
       { id: 'player', pos: myShooter.current, r: role },
       { id: 'shield', pos: myShield.current, r: role },
@@ -108,7 +108,7 @@ export default function GamePage() {
     return () => s.disconnect();
   }, [roomId, role]);
 
-  const handleTouch = (e) => {
+  const handleTouch = useCallback((e) => {
     if (!role || gameOver || (countdown > 0)) return;
     const rect = canvasRef.current.getBoundingClientRect();
     Array.from(e.changedTouches).forEach(t => {
@@ -150,7 +150,7 @@ export default function GamePage() {
         activeTouches.current.delete(t.identifier);
       }
     });
-  };
+  }, [role, gameOver, countdown, grenades, roomId]);
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext("2d");
@@ -160,7 +160,6 @@ export default function GamePage() {
       if (screenShake > 0) { ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake); setScreenShake(s=>Math.max(0,s-1)); }
       ctx.clearRect(-50, -50, W+100, H+100);
 
-      // Enemy Interpolation
       enemyShooter.current.x = lerp(enemyShooter.current.x, enemyTarget.current.shooter.x, 0.2);
       enemyShooter.current.y = lerp(enemyShooter.current.y, enemyTarget.current.shooter.y, 0.2);
       enemyShooter.current.rot = lerp(enemyShooter.current.rot, enemyTarget.current.shooter.rot, 0.2);
@@ -169,31 +168,22 @@ export default function GamePage() {
       enemyBox.current.x = lerp(enemyBox.current.x, enemyTarget.current.box.x, 0.2);
       enemyBox.current.y = lerp(enemyBox.current.y, enemyTarget.current.box.y, 0.2);
 
-      // Bullet Collision Engine
       const checkBullets = (bullets, isEnemy) => {
         for (let i = bullets.length - 1; i >= 0; i--) {
           const b = bullets[i]; b.x += b.vx; b.y += b.vy;
           ctx.fillStyle = isEnemy ? "#ff3e3e" : "#00f2ff";
           ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-          
           if (!isEnemy) {
-            // ARC COLLISION: Only hit if angle is within the 180deg visible arc (0.3 to 2.8 radians roughly)
             const angleToShield = Math.atan2(b.y - enemyShield.current.y, b.x - enemyShield.current.x);
             const distToShield = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
-            
             if (shieldHealth[opp] > 0 && distToShield < 65 && angleToShield > 0.3 && angleToShield < 2.8) {
-               socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp, damageType: 'bullet' }); 
-               bullets.splice(i, 1); continue;
+               socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp, damageType: 'bullet' }); bullets.splice(i, 1); continue;
             }
-            // TIGHT BOX HITBOX
             if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 22 && Math.abs(b.y - enemyBox.current.y) < 22) {
-               socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp, damageType: 'bullet' }); 
-               bullets.splice(i, 1); continue;
+               socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp, damageType: 'bullet' }); bullets.splice(i, 1); continue;
             }
-            // TIGHT SHOOTER HITBOX
             if (Math.hypot(b.x - enemyShooter.current.x, b.y - enemyShooter.current.y) < 18) {
-               socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp, damageType: 'bullet' }); 
-               bullets.splice(i, 1); continue;
+               socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp, damageType: 'bullet' }); bullets.splice(i, 1); continue;
             }
           }
           if (b.y < -20 || b.y > H + 20) bullets.splice(i, 1);
@@ -201,7 +191,6 @@ export default function GamePage() {
       };
       checkBullets(myBullets.current, false); checkBullets(enemyBullets.current, true);
 
-      // Explosions
       explosionAnims.current.forEach((a, i) => {
         a.r += 6; a.life--;
         ctx.strokeStyle = `rgba(255, 100, 0, ${a.life / 30})`; ctx.lineWidth = 4;
@@ -215,22 +204,18 @@ export default function GamePage() {
         if (g.timer <= 0) { handleExplosion(g.x, g.y); activeGrenades.current.splice(i, 1); }
       });
 
-      // UI Drag Handles (Restored)
       ctx.fillStyle = "rgba(0, 242, 255, 0.15)";
-      ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 40, 0, Math.PI*2); ctx.fill(); // Shield Handle
+      ctx.beginPath(); ctx.arc(myShield.current.x, myShield.current.y, 40, 0, Math.PI*2); ctx.fill(); 
       ctx.strokeStyle = "rgba(0, 242, 255, 0.3)"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 45, 20, 0, Math.PI*2); ctx.stroke(); // Wheel Handle
+      ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 45, 20, 0, Math.PI*2); ctx.stroke();
 
-      // Draw Elements
       if (boxHealth[role] > 0) { ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50); }
       if (boxHealth[opp] > 0) { ctx.fillStyle = "#ff3e3e"; ctx.fillRect(enemyBox.current.x-25, enemyBox.current.y-25, 50, 50); }
       
       const drawSld = (p, hp, isE) => {
         if (hp <= 0) return;
         ctx.strokeStyle = isE ? "#ff3e3e" : "#00f2ff"; ctx.lineWidth = 8; ctx.lineCap = "round";
-        ctx.beginPath(); 
-        ctx.arc(p.x, p.y, 60, isE ? 0.35 : -2.75, isE ? 2.75 : -0.35); 
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 60, isE ? 0.35 : -2.75, isE ? 2.75 : -0.35); ctx.stroke();
       };
       drawSld(myShield.current, shieldHealth[role], false); drawSld(enemyShield.current, shieldHealth[opp], true);
 
@@ -245,12 +230,11 @@ export default function GamePage() {
       frame = requestAnimationFrame(render);
     };
     render(); return () => cancelAnimationFrame(frame);
-  }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash, handleExplosion]);
+  }, [role, opp, boxHealth, shieldHealth, screenShake, muzzleFlash, handleExplosion, roomId]);
 
   return (
     <div className={`game-container ${lifestealFlash ? 'lifesteal-active' : ''}`} onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
-        {/* ENEMY TOP BAR */}
         <div className="stat-box">
           <span className="label">OPP</span>
           <div className="mini-hp">
@@ -260,7 +244,6 @@ export default function GamePage() {
           </div>
           {lifestealPopups.find(p => p.attacker === opp) && <span className="lifesteal-text enemy">+5hp</span>}
         </div>
-        {/* PLAYER BOTTOM BAR */}
         <div className="stat-box">
           <span className="label">YOU</span>
           <div className="mini-hp">
@@ -271,19 +254,12 @@ export default function GamePage() {
           {lifestealPopups.find(p => p.attacker === role) && <span className="lifesteal-text player">+5hp</span>}
         </div>
       </div>
-
       <canvas ref={canvasRef} width={W} height={H} />
-
       {countdown > 0 && <div className="overlay"><div className="count">{countdown}</div></div>}
-      
       {gameOver && (
         <div className={`overlay end-screen ${gameOver}`}>
           <h1 className="status-title">{gameOver === "win" ? "VICTORY" : "DEFEAT"}</h1>
-          {gameOver === "win" ? (
-            <div className="final-points">SURVIVOR SCORE: {finalScore}</div>
-          ) : (
-            <div className="final-points loser-text">SYSTEM SHUTDOWN</div>
-          )}
+          <div className="final-points">{gameOver === "win" ? `SCORE: ${finalScore}` : "SYSTEM SHUTDOWN"}</div>
           <button className="exit-btn" onClick={() => navigate("/second-page")}>REPLAY</button>
         </div>
       )}
