@@ -26,6 +26,7 @@ export default function GamePage() {
   const [countdown, setCountdown] = useState(null);
   const [screenShake, setScreenShake] = useState(0);
   const [muzzleFlash, setMuzzleFlash] = useState(false);
+  const [lifestealFlash, setLifestealFlash] = useState(false);
   const [lifestealPopups, setLifestealPopups] = useState([]);
 
   const myBox = useRef({ x: 60, y: 650 });
@@ -132,9 +133,17 @@ export default function GamePage() {
       setShieldHealth(data.shieldHealth);
       setGrenades(data.grenades);
       
+      // Lifesteal UI Logic
       if (data.lastHit && data.lastHit.target === 'box') {
         const id = Date.now() + Math.random();
         setLifestealPopups(prev => [...prev, { id, attacker: data.lastHit.attackerRole }]);
+        
+        // If the local player is the attacker, show green flash
+        if (data.lastHit.attackerRole === role) {
+          setLifestealFlash(true);
+          setTimeout(() => setLifestealFlash(false), 150);
+        }
+        
         setTimeout(() => setLifestealPopups(p => p.filter(x => x.id !== id)), 800);
       }
 
@@ -173,15 +182,14 @@ export default function GamePage() {
   const handleTouch = (e) => {
     if (!role || gameOver || (countdown !== null && countdown > 0)) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const now = Date.now();
     Array.from(e.changedTouches).forEach(t => {
       const tx = (t.clientX - rect.left) * (W / rect.width);
       const ty = (t.clientY - rect.top) * (H / rect.height);
       if (e.type === "touchstart") {
         let id = null;
         if (Math.hypot(tx - myShooter.current.x, ty - myShooter.current.y) < 50) {
-          if (now - lastTapTime.current < 300 && grenades[role] > 0) { isCooking.current = true; cookPower.current = 0; }
-          lastTapTime.current = now; id = "shooter";
+          if (Date.now() - lastTapTime.current < 300 && grenades[role] > 0) { isCooking.current = true; cookPower.current = 0; }
+          lastTapTime.current = Date.now(); id = "shooter";
         }
         else if (Math.hypot(tx - myShooter.current.x, ty - (myShooter.current.y + 45)) < 30) id = "wheel";
         else if (Math.hypot(tx - myShield.current.x, ty - myShield.current.y) < 60) id = "shield";
@@ -226,15 +234,10 @@ export default function GamePage() {
 
     const drawMiniBar = (x, y, current, max, color) => {
       if (current <= 0) return;
-      const barW = 40;
-      const barH = 5;
-      ctx.fillStyle = "#111";
-      ctx.fillRect(x - barW / 2, y - 45, barW, barH);
-      ctx.fillStyle = color;
-      ctx.fillRect(x - barW / 2, y - 45, (current / max) * barW, barH);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 10px Inter";
-      ctx.textAlign = "center";
+      const barW = 40; const barH = 5;
+      ctx.fillStyle = "#111"; ctx.fillRect(x - barW / 2, y - 45, barW, barH);
+      ctx.fillStyle = color; ctx.fillRect(x - barW / 2, y - 45, (current / max) * barW, barH);
+      ctx.fillStyle = "#fff"; ctx.font = "bold 10px Inter"; ctx.textAlign = "center";
       ctx.fillText(Math.floor(current), x, y - 50);
     };
 
@@ -256,8 +259,7 @@ export default function GamePage() {
 
       sparks.current.forEach((s, i) => {
         s.x += s.vx; s.y += s.vy; s.life--;
-        ctx.fillStyle = `rgba(255, 255, 255, ${s.life / 25})`;
-        ctx.fillRect(s.x, s.y, 2, 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${s.life / 25})`; ctx.fillRect(s.x, s.y, 2, 2);
         if (s.life <= 0) sparks.current.splice(i, 1);
       });
 
@@ -276,26 +278,20 @@ export default function GamePage() {
 
       const processBullets = (bullets, isEnemy) => {
         for (let i = bullets.length - 1; i >= 0; i--) {
-          const b = bullets[i];
-          b.x += b.vx; b.y += b.vy;
+          const b = bullets[i]; b.x += b.vx; b.y += b.vy;
           ctx.fillStyle = isEnemy ? "#ff3e3e" : "#00f2ff";
           ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, Math.PI*2); ctx.fill();
-
           if (!isEnemy) {
-            const distS = Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y);
-            if (shieldHealth[opp] > 0 && distS < 60) {
-              createSparks(b.x, b.y); 
-              socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp, damageType: 'bullet' });
+            if (shieldHealth[opp] > 0 && Math.hypot(b.x - enemyShield.current.x, b.y - enemyShield.current.y) < 60) {
+              createSparks(b.x, b.y); socket.current.emit("take_damage", { roomId, target: 'shield', victimRole: opp, damageType: 'bullet' });
               bullets.splice(i, 1); continue;
             } 
             if (boxHealth[opp] > 0 && Math.abs(b.x - enemyBox.current.x) < 25 && Math.abs(b.y - enemyBox.current.y) < 25) {
-              createSparks(b.x, b.y); 
-              socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp, damageType: 'bullet' });
+              createSparks(b.x, b.y); socket.current.emit("take_damage", { roomId, target: 'box', victimRole: opp, damageType: 'bullet' });
               bullets.splice(i, 1); continue;
             } 
             if (Math.hypot(b.x - enemyShooter.current.x, b.y - enemyShooter.current.y) < 25) {
-              createSparks(b.x, b.y); 
-              socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp, damageType: 'bullet' });
+              createSparks(b.x, b.y); socket.current.emit("take_damage", { roomId, target: 'player', victimRole: opp, damageType: 'bullet' });
               bullets.splice(i, 1); continue;
             }
           }
@@ -310,11 +306,6 @@ export default function GamePage() {
         ctx.arc(myShooter.current.x, myShooter.current.y, 45, -Math.PI/2, (-Math.PI/2)+(Math.PI*2*cookPower.current));
         ctx.stroke();
       }
-
-      ctx.fillStyle = "rgba(0, 242, 255, 0.1)"; ctx.beginPath(); 
-      ctx.arc(myShield.current.x, myShield.current.y, 30, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = "rgba(0, 242, 255, 0.4)"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(myShooter.current.x, myShooter.current.y + 45, 20, 0, Math.PI*2); ctx.stroke();
 
       if (boxHealth[role] > 0) {
         ctx.fillStyle = "#00f2ff"; ctx.fillRect(myBox.current.x-25, myBox.current.y-25, 50, 50);
@@ -350,9 +341,8 @@ export default function GamePage() {
   }, [role, opp, boxHealth, shieldHealth, screenShake, handleExplosion, createSparks, roomId, muzzleFlash]);
 
   return (
-    <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
+    <div className={`game-container ${lifestealFlash ? 'lifesteal-active' : ''}`} onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
       <div className="header-dashboard">
-        {/* ENEMY DASHBOARD - Mirroring Fix */}
         <div className="stat-box">
           <span className="label">ENEMY</span>
           <div className="mini-hp">
@@ -363,7 +353,6 @@ export default function GamePage() {
           {lifestealPopups.find(p => p.attacker === opp) && <span className="lifesteal-text enemy">+5hp</span>}
         </div>
 
-        {/* PLAYER DASHBOARD - Mirroring Fix */}
         <div className="stat-box">
           <span className="label">YOU</span>
           <div className="mini-hp">
