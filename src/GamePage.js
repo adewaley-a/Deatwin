@@ -5,9 +5,6 @@ import "./GamePage.css";
 
 const SOCKET_URL = "https://deatgame-server.onrender.com";
 const W = 400, H = 700;
-const TICK_RATE = 1000 / 30;
-
-const lerp = (start, end, amt) => (1 - amt) * start + amt * end;
 
 export default function GamePage() {
   const { roomId } = useParams();
@@ -15,101 +12,57 @@ export default function GamePage() {
   const socket = useRef(null);
   const canvasRef = useRef(null);
   const audioCtx = useRef(null);
-  const lastEmit = useRef(0);
-
+  
   const [role, setRole] = useState(null);
-  const [gameState, setGameState] = useState({
-    health: { host: 650, guest: 650 },
-    boxHealth: { host: 300, guest: 300 },
-    shieldHealth: { host: 350, guest: 350 }
-  });
+  const [gameState, setGameState] = useState(null);
   const [gameOver, setGameOver] = useState(null);
   const [countdown, setCountdown] = useState(null);
+  const [popups, setPopups] = useState([]); // For +5HP animations
 
-  const myObj = useRef({
-    shooter: { x: 100, y: 640, rot: 0 },
-    shield: { x: 200, y: 560 },
-    box: { x: 300, y: 660 }
-  });
-
-  const enemyTarget = useRef({
-    shooter: { x: 300, y: 60, rot: 0 },
-    shield: { x: 200, y: 140 },
-    box: { x: 100, y: 40 }
-  });
-
-  const enemyVis = useRef({
-    shooter: { x: 300, y: 60, rot: 0 },
-    shield: { x: 200, y: 140 },
-    box: { x: 100, y: 40 }
-  });
-
+  const myObj = useRef({ shooter: { x: 100, y: 640, rot: 0 }, shield: { x: 200, y: 560 }, box: { x: 300, y: 660 } });
+  const enemyTarget = useRef({ shooter: { x: 300, y: 60, rot: 0 }, shield: { x: 200, y: 140 }, box: { x: 100, y: 40 } });
+  const enemyVis = useRef({ shooter: { x: 300, y: 60, rot: 0 }, shield: { x: 200, y: 140 }, box: { x: 100, y: 40 } });
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const sparks = useRef([]);
   const activeTouches = useRef(new Map());
 
-  const opp = role === 'host' ? 'guest' : 'host';
-
-  const playSound = useCallback((type) => {
+  const playHitSound = useCallback(() => {
     if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
-    
     const osc = audioCtx.current.createOscillator();
-    const gain = audioCtx.current.createGain();
-    
-    if (type === 'hit') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(800, audioCtx.current.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(100, audioCtx.current.currentTime + 0.1);
-      gain.gain.setValueAtTime(0.1, audioCtx.current.currentTime);
-    } else {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(400, audioCtx.current.currentTime);
-      gain.gain.setValueAtTime(0.05, audioCtx.current.currentTime);
-    }
-    
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.1);
-    osc.connect(gain); gain.connect(audioCtx.current.destination);
+    const g = audioCtx.current.createGain();
+    osc.type = "sine"; osc.frequency.setValueAtTime(1000, audioCtx.current.currentTime);
+    g.gain.setValueAtTime(0.1, audioCtx.current.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.1);
+    osc.connect(g); g.connect(audioCtx.current.destination);
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.1);
   }, []);
 
-  const syncPosition = useCallback(() => {
-    const now = Date.now();
-    if (now - lastEmit.current < TICK_RATE) return;
-    lastEmit.current = now;
-    socket.current.emit("move_all", {
-      roomId,
-      shooter: { x: W - myObj.current.shooter.x, y: H - myObj.current.shooter.y, rot: -myObj.current.shooter.rot },
-      shield: { x: W - myObj.current.shield.x, y: H - myObj.current.shield.y },
-      box: { x: W - myObj.current.box.x, y: H - myObj.current.box.y }
-    });
-  }, [roomId]);
-
   useEffect(() => {
-    const s = io(SOCKET_URL, { transports: ['websocket'] });
-    socket.current = s;
+    const s = io(SOCKET_URL); socket.current = s;
     s.emit("join_game", { roomId });
     s.on("assign_role", (d) => {
       setRole(d.role);
-      if (d.role === 'guest') {
-        myObj.current.shooter.x = 300;
-        myObj.current.box.x = 100;
-      }
+      if (d.role === 'guest') { myObj.current.shooter.x = 300; myObj.current.box.x = 100; }
     });
     s.on("start_countdown", () => setCountdown(3));
     s.on("opp_move_all", (d) => { enemyTarget.current = d; });
     s.on("incoming_bullet", (b) => enemyBullets.current.push(b));
     s.on("update_game_state", (data) => {
       setGameState(data);
-      if (data.lastHit) playSound('hit');
-      if (data.health.host <= 0 || data.health.guest <= 0) {
-        setGameOver(data.health[role] <= 0 ? "lose" : "win");
-        socket.current.disconnect();
+      if (data.lastHit) {
+        playHitSound();
+        if (data.lastHit.target === 'box' && data.lastHit.attacker === role) {
+          const id = Math.random();
+          setPopups(prev => [...prev, id]);
+          setTimeout(() => setPopups(prev => prev.filter(p => p !== id)), 600);
+        }
       }
+      const opp = role === 'host' ? 'guest' : 'host';
+      if (data.health[role] <= 0) setGameOver("lose");
+      else if (data.health[opp] <= 0) setGameOver("win");
     });
     return () => s.disconnect();
-  }, [roomId, role, playSound]);
+  }, [roomId, role, playHitSound]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -119,28 +72,22 @@ export default function GamePage() {
 
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
-    const fireInt = setInterval(() => {
+    const fire = setInterval(() => {
       const { x, y, rot } = myObj.current.shooter;
-      // Calculate Tip of Shooter
-      const tipX = x + Math.sin(rot) * 25;
-      const tipY = y - Math.cos(rot) * 25;
-      const vx = Math.sin(rot) * 15, vy = -Math.cos(rot) * 15;
       const bId = Math.random().toString(36).substr(2, 9);
-      
-      myBullets.current.push({ x: tipX, y: tipY, vx, vy, id: bId });
-      socket.current.emit("fire", { roomId, x: W - tipX, y: H - tipY, vx: -vx, vy: -vy, id: bId });
-      playSound('fire');
-    }, 200);
-    return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, roomId, playSound]);
+      const b = { x: x + Math.sin(rot)*25, y: y - Math.cos(rot)*25, vx: Math.sin(rot)*16, vy: -Math.cos(rot)*16, id: bId };
+      myBullets.current.push(b);
+      socket.current.emit("fire", { roomId, x: W-b.x, y: H-b.y, vx: -b.vx, vy: -b.vy, id: bId });
+    }, 220);
+    return () => clearInterval(fire);
+  }, [countdown, gameOver, role, roomId]);
 
   const handleTouch = (e) => {
-    if (!role || gameOver || countdown > 0) return;
+    if (gameOver || !role) return;
     const rect = canvasRef.current.getBoundingClientRect();
     Array.from(e.changedTouches).forEach(t => {
       const tx = (t.clientX - rect.left) * (W / rect.width);
       const ty = (t.clientY - rect.top) * (H / rect.height);
-
       if (e.type === "touchstart") {
         let id = null;
         if (Math.hypot(tx - myObj.current.shooter.x, ty - (myObj.current.shooter.y + 45)) < 40) id = "wheel";
@@ -151,108 +98,88 @@ export default function GamePage() {
       }
       if (e.type === "touchmove") {
         const dId = activeTouches.current.get(t.identifier);
-        if (dId === "wheel") {
-          myObj.current.shooter.rot = Math.max(-1.1, Math.min(1.1, (tx - myObj.current.shooter.x) / 30));
-        } else if (dId) {
-          myObj.current[dId].x = tx;
-          myObj.current[dId].y = Math.max(H/2 + 20, ty); // Keep in bottom half
-        }
-        syncPosition();
+        if (dId === "wheel") myObj.current.shooter.rot = Math.max(-1.1, Math.min(1.1, (tx - myObj.current.shooter.x) / 30));
+        else if (dId) { myObj.current[dId].x = tx; myObj.current[dId].y = Math.max(H/2 + 20, ty); }
+        socket.current.emit("move_all", { roomId, shooter: { x: W-myObj.current.shooter.x, y: H-myObj.current.shooter.y, rot: -myObj.current.shooter.rot }, shield: { x: W-myObj.current.shield.x, y: H-myObj.current.shield.y }, box: { x: W-myObj.current.box.x, y: H-myObj.current.box.y } });
       }
-      if (e.type === "touchend") activeTouches.current.delete(t.identifier);
     });
   };
 
   useEffect(() => {
+    if (!gameState) return;
     const ctx = canvasRef.current.getContext("2d");
     let frame;
     const render = () => {
       ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = "#222"; ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+      const oppRole = role === 'host' ? 'guest' : 'host';
       
-      // Demarcation Line
-      ctx.setLineDash([10, 10]);
-      ctx.strokeStyle = "rgba(255,255,255,0.2)";
-      ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
-      ctx.setLineDash([]);
-
-      // Interpolate Enemy
       ["shooter", "shield", "box"].forEach(k => {
-        enemyVis.current[k].x = lerp(enemyVis.current[k].x, enemyTarget.current[k].x, 0.2);
-        enemyVis.current[k].y = lerp(enemyVis.current[k].y, enemyTarget.current[k].y, 0.2);
-        if (k === "shooter") enemyVis.current.shooter.rot = lerp(enemyVis.current.shooter.rot, enemyTarget.current.shooter.rot, 0.2);
+        enemyVis.current[k].x = 0.8*enemyVis.current[k].x + 0.2*enemyTarget.current[k].x;
+        enemyVis.current[k].y = 0.8*enemyVis.current[k].y + 0.2*enemyTarget.current[k].y;
+        if (k === "shooter") enemyVis.current.shooter.rot = 0.8*enemyVis.current.shooter.rot + 0.2*enemyTarget.current.shooter.rot;
       });
 
-      // Sparks
-      sparks.current.forEach((s, i) => {
-        s.x += s.vx; s.y += s.vy; s.life -= 0.05;
-        if (s.life <= 0) sparks.current.splice(i, 1);
-        ctx.fillStyle = `rgba(255, 255, 255, ${s.life})`;
-        ctx.fillRect(s.x, s.y, 2, 2);
-      });
-
-      // Bullets & Collision
       [myBullets.current, enemyBullets.current].forEach((list, isEnemy) => {
         for (let i = list.length - 1; i >= 0; i--) {
           const b = list[i]; b.x += b.vx; b.y += b.vy;
-          ctx.shadowBlur = 10; ctx.shadowColor = isEnemy ? "#f00" : "#0ff";
-          ctx.fillStyle = isEnemy ? "#ff3e3e" : "#00f2ff";
-          ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, Math.PI*2); ctx.fill();
-          ctx.shadowBlur = 0;
+          ctx.fillStyle = isEnemy ? "#f00" : "#0ff";
+          ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.fill();
 
           if (!isEnemy) {
-            const hitS = gameState.shieldHealth[opp] > 0 && Math.hypot(b.x - enemyVis.current.shield.x, b.y - enemyVis.current.shield.y) < 45;
-            const hitB = gameState.boxHealth[opp] > 0 && Math.hypot(b.x - enemyVis.current.box.x, b.y - enemyVis.current.box.y) < 25;
+            const hitS = gameState.shieldHealth[oppRole] > 0 && Math.hypot(b.x - enemyVis.current.shield.x, b.y - enemyVis.current.shield.y) < 40;
+            const hitB = gameState.boxHealth[oppRole] > 0 && Math.hypot(b.x - enemyVis.current.box.x, b.y - enemyVis.current.box.y) < 25;
             const hitP = Math.hypot(b.x - enemyVis.current.shooter.x, b.y - enemyVis.current.shooter.y) < 25;
-            
             if (hitS || hitB || hitP) {
-              socket.current.emit("take_damage", { roomId, target: hitS?'shield':hitB?'box':'player', victimRole: opp, bulletId: b.id });
-              for(let j=0; j<5; j++) sparks.current.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, life: 1 });
+              socket.current.emit("take_damage", { roomId, target: hitS?'shield':hitB?'box':'player', victimRole: oppRole, bulletId: b.id });
               list.splice(i, 1);
             }
           }
-          if (b.y < -20 || b.y > H + 20) list.splice(i, 1);
+          if (b.y < -10 || b.y > H+10) list.splice(i, 1);
         }
       });
 
-      const drawObj = (obj, col, isE, hps) => {
-        const hpKey = isE ? opp : role;
-        // Box
-        if (gameState.boxHealth[hpKey] > 0) {
-          ctx.fillStyle = col; ctx.shadowBlur = 15; ctx.shadowColor = col;
-          ctx.fillRect(obj.box.x-20, obj.box.y-20, 40, 40);
+      const drawObj = (obj, col, isE, hKey) => {
+        if (gameState.shieldHealth[hKey] > 0) {
+          ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(obj.shield.x, obj.shield.y, 40, isE?0:Math.PI, isE?Math.PI:0); ctx.stroke();
+          ctx.fillStyle = "#fff"; ctx.fillText(Math.floor(gameState.shieldHealth[hKey]), obj.shield.x-10, obj.shield.y+(isE?-50:50));
         }
-        // Shield
-        if (gameState.shieldHealth[hpKey] > 0) {
-          ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = 3;
-          ctx.arc(obj.shield.x, obj.shield.y, 45, isE?0:Math.PI, isE?Math.PI:0); ctx.stroke();
+        if (gameState.boxHealth[hKey] > 0) {
+          ctx.fillStyle = col; ctx.fillRect(obj.box.x-15, obj.box.y-15, 30, 30);
+          ctx.fillStyle = "#fff"; ctx.fillText(Math.floor(gameState.boxHealth[hKey]), obj.box.x-10, obj.box.y+(isE?-25:25));
         }
-        // Shooter
         ctx.save(); ctx.translate(obj.shooter.x, obj.shooter.y); ctx.rotate(obj.shooter.rot);
-        ctx.fillStyle = col; ctx.beginPath();
-        ctx.moveTo(0, isE?25:-25); ctx.lineTo(-15, isE?-10:10); ctx.lineTo(15, isE?-10:10); ctx.fill();
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, isE?20:-20); ctx.lineTo(-12, isE?-8:8); ctx.lineTo(12, isE?-8:8); ctx.fill();
         ctx.restore();
-        // Wheel
-        ctx.beginPath(); ctx.strokeStyle = "#444"; ctx.arc(obj.shooter.x, obj.shooter.y + (isE?-45:45), 15, 0, Math.PI*2); ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "#444"; ctx.beginPath(); ctx.arc(obj.shooter.x, obj.shooter.y+(isE?-40:40), 12, 0, 7); ctx.stroke();
       };
-
-      drawObj(myObj.current, "#00f2ff", false);
-      drawObj(enemyVis.current, "#ff3e3e", true);
+      drawObj(myObj.current, "#0ff", false, role);
+      drawObj(enemyVis.current, "#f00", true, oppRole);
       frame = requestAnimationFrame(render);
     };
-    render();
-    return () => cancelAnimationFrame(frame);
-  }, [role, gameState, opp, roomId, playSound]);
+    render(); return () => cancelAnimationFrame(frame);
+  }, [gameState, role, roomId]);
+
+  if (!gameState || !role) return <div className="loading">Connecting...</div>;
+
+  const myH = gameState.health[role], myOH = gameState.overHealth[role];
+  const opH = gameState.health[role==='host'?'guest':'host'], opOH = gameState.overHealth[role==='host'?'guest':'host'];
 
   return (
-    <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
-      <div className="hud">
-        <div className="stat red">ENEMY: {Math.floor(gameState.health[opp])}</div>
-        <div className="stat blue">YOU: {Math.floor(gameState.health[role])}</div>
+    <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch}>
+      <div className="hud-top">
+        <div className="hp-box">
+          <div className="bar-bg"><div className="fill red" style={{width: `${(opH/650)*100}%`}}/><div className="fill gold" style={{width: `${(opOH/300)*100}%`}}/></div>
+          <span>ENEMY: {Math.floor(opH+opOH)}</span>
+        </div>
+        <div className="hp-box">
+          <div className="bar-bg"><div className="fill blue" style={{width: `${(myH/650)*100}%`}}/><div className="fill gold" style={{width: `${(myOH/300)*100}%`}}/></div>
+          <span>YOU: {Math.floor(myH+myOH)}</span>
+          {popups.map(p => <div key={p} className="lifesteal-pop">+5HP</div>)}
+        </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
-      {countdown > 0 && <div className="count-overlay">{countdown}</div>}
-      {gameOver && <div className="game-over"><h1>{gameOver.toUpperCase()}</h1><button onClick={() => navigate("/")}>EXIT</button></div>}
+      {gameOver && <div className={`end-scr ${gameOver}`}><h1>{gameOver==='win'?'VICTORY':'DEFEAT'}</h1><button onClick={()=>navigate("/")}>EXIT</button></div>}
     </div>
   );
 }
