@@ -14,7 +14,7 @@ export default function GamePage() {
   const navigate = useNavigate();
   const socket = useRef(null);
   const canvasRef = useRef(null);
-  const audioCtx = useRef(null);
+  const audioCtx = useRef(null); // Used for playSound
   const lastEmit = useRef(0);
 
   const [role, setRole] = useState(null);
@@ -28,15 +28,15 @@ export default function GamePage() {
   const [countdown, setCountdown] = useState(null);
   const [lifestealPopups, setLifestealPopups] = useState([]);
 
-  // Element Refs - Offset at Start
+  // Refs for positions - Offset at start
   const myObj = useRef({
-    shooter: { x: 100, y: 630, rot: 0 }, // Host starts left
+    shooter: { x: 100, y: 630, rot: 0 }, 
     shield: { x: 200, y: 540 },
     box: { x: 300, y: 670 }
   });
 
   const enemyTarget = useRef({
-    shooter: { x: 300, y: 70, rot: 0 }, // Enemy target (flipped in sync)
+    shooter: { x: 300, y: 70, rot: 0 },
     shield: { x: 200, y: 160 },
     box: { x: 100, y: 30 }
   });
@@ -49,7 +49,7 @@ export default function GamePage() {
 
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const sparks = useRef([]);
+  const sparks = useRef([]); // Used for hit particles
   const activeTouches = useRef(new Map());
 
   const opp = role === 'host' ? 'guest' : 'host';
@@ -83,7 +83,6 @@ export default function GamePage() {
     s.emit("join_game", { roomId });
     s.on("assign_role", (d) => {
       setRole(d.role);
-      // Offset setup based on role
       if (d.role === 'guest') {
         myObj.current.shooter.x = 300;
         myObj.current.box.x = 100;
@@ -101,7 +100,7 @@ export default function GamePage() {
       }
       if (data.health.host <= 0 || data.health.guest <= 0) {
         setGameOver(data.health[role] <= 0 ? "lose" : "win");
-        socket.current.disconnect(); // Close room connection
+        socket.current.disconnect();
       }
     });
     return () => s.disconnect();
@@ -121,7 +120,7 @@ export default function GamePage() {
       const bId = Math.random().toString(36).substr(2, 9);
       myBullets.current.push({ x, y, vx, vy, id: bId });
       socket.current.emit("fire", { roomId, x: W - x, y: H - y, vx: -vx, vy: -vy, id: bId });
-      playSound(200, 0.05);
+      playSound(200, 0.04);
     }, 180);
     return () => clearInterval(fireInt);
   }, [countdown, gameOver, role, roomId, playSound]);
@@ -135,17 +134,17 @@ export default function GamePage() {
 
       if (e.type === "touchstart") {
         let id = null;
-        // Check Steering Wheel (base of shooter)
-        if (Math.hypot(tx - myObj.current.shooter.x, ty - (myObj.current.shooter.y + 50)) < 40) id = "wheel";
-        else if (Math.hypot(tx - myObj.current.shooter.x, ty - myObj.current.shooter.y) < 40) id = "shooter";
-        else if (Math.hypot(tx - myObj.current.shield.x, ty - myObj.current.shield.y) < 50) id = "shield";
-        else if (Math.hypot(tx - myObj.current.box.x, ty - myObj.current.box.y) < 50) id = "box";
+        // Wheel check (at base of shooter)
+        if (Math.hypot(tx - myObj.current.shooter.x, ty - (myObj.current.shooter.y + 55)) < 45) id = "wheel";
+        else if (Math.hypot(tx - myObj.current.shooter.x, ty - myObj.current.shooter.y) < 45) id = "shooter";
+        else if (Math.hypot(tx - myObj.current.shield.x, ty - myObj.current.shield.y) < 55) id = "shield";
+        else if (Math.hypot(tx - myObj.current.box.x, ty - myObj.current.box.y) < 55) id = "box";
         if (id) activeTouches.current.set(t.identifier, id);
       }
       if (e.type === "touchmove") {
         const dId = activeTouches.current.get(t.identifier);
         if (dId === "wheel") {
-          myObj.current.shooter.rot = Math.max(-1.2, Math.min(1.2, (tx - myObj.current.shooter.x) / 30));
+          myObj.current.shooter.rot = Math.max(-1.2, Math.min(1.2, (tx - myObj.current.shooter.x) / 35));
         } else if (dId) {
           myObj.current[dId].x = tx;
           myObj.current[dId].y = ty;
@@ -162,14 +161,22 @@ export default function GamePage() {
     const render = () => {
       ctx.clearRect(0, 0, W, H);
       
-      // Interpolate Enemy Visuals
+      // Interpolate Enemy
       ["shooter", "shield", "box"].forEach(k => {
         enemyVis.current[k].x = lerp(enemyVis.current[k].x, enemyTarget.current[k].x, 0.2);
         enemyVis.current[k].y = lerp(enemyVis.current[k].y, enemyTarget.current[k].y, 0.2);
         if (k === "shooter") enemyVis.current.shooter.rot = lerp(enemyVis.current.shooter.rot, enemyTarget.current.shooter.rot, 0.2);
       });
 
-      // Bullets & Sparks Logic
+      // Sparks logic (Utilizing the ref)
+      sparks.current.forEach((s, i) => {
+        s.x += s.vx; s.y += s.vy; s.life -= 0.05;
+        if (s.life <= 0) sparks.current.splice(i, 1);
+        ctx.fillStyle = `rgba(255, 255, 255, ${s.life})`;
+        ctx.fillRect(s.x, s.y, 2, 2);
+      });
+
+      // Bullets
       [myBullets.current, enemyBullets.current].forEach((list, isEnemy) => {
         for (let i = list.length - 1; i >= 0; i--) {
           const b = list[i]; b.x += b.vx; b.y += b.vy;
@@ -181,6 +188,7 @@ export default function GamePage() {
             const hitPlayer = Math.hypot(b.x - enemyVis.current.shooter.x, b.y - enemyVis.current.shooter.y) < 30;
             if (hitShield || hitBox || hitPlayer) {
               socket.current.emit("take_damage", { roomId, target: hitShield ? 'shield' : hitBox ? 'box' : 'player', victimRole: opp, bulletId: b.id });
+              for(let j=0; j<4; j++) sparks.current.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, life: 1 });
               list.splice(i, 1);
             }
           }
@@ -188,26 +196,22 @@ export default function GamePage() {
         }
       });
 
-      // Draw Player & Enemy
       const drawFull = (obj, col, isE) => {
-        // Elements
         ctx.fillStyle = col; 
-        ctx.fillRect(obj.box.x-25, obj.box.y-25, 50, 50); // Box
-        if (gameState.shieldHealth[isE ? opp : role] > 0) { // Shield
+        ctx.fillRect(obj.box.x-25, obj.box.y-25, 50, 50);
+        if (gameState.shieldHealth[isE ? opp : role] > 0) {
           ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = 4;
-          ctx.arc(obj.shield.x, obj.shield.y, 50, isE?0:Math.PI, isE?Math.PI:0); ctx.stroke();
+          ctx.arc(obj.shield.x, obj.shield.y, 55, isE?0:Math.PI, isE?Math.PI:0); ctx.stroke();
         }
-        // Shooter & Wheel
         ctx.save(); ctx.translate(obj.shooter.x, obj.shooter.y); ctx.rotate(obj.shooter.rot);
         ctx.beginPath(); ctx.moveTo(0, isE?30:-30); ctx.lineTo(-20, isE?-10:10); ctx.lineTo(20, isE?-10:10); ctx.fill();
         ctx.restore();
-        // Steering Wheel (Visual)
-        ctx.beginPath(); ctx.strokeStyle = "#777"; ctx.lineWidth = 2;
-        ctx.arc(obj.shooter.x, obj.shooter.y + (isE?-50:50), 20, 0, Math.PI*2); ctx.stroke();
+        // Steering Wheel Visual
+        ctx.beginPath(); ctx.strokeStyle = "#555"; ctx.lineWidth = 3;
+        ctx.arc(obj.shooter.x, obj.shooter.y + (isE?-55:55), 20, 0, Math.PI*2); ctx.stroke();
       };
       drawFull(myObj.current, "#00f2ff", false);
       drawFull(enemyVis.current, "#ff3e3e", true);
-
       frame = requestAnimationFrame(render);
     };
     render();
