@@ -14,10 +14,13 @@ export default function GamePage() {
   const audioCtx = useRef(null);
   
   const [role, setRole] = useState(null);
-  const [gameState, setGameState] = useState(null);
+  const [gameState, setGameState] = useState({
+    health: { host: 650, guest: 650 }, overHealth: { host: 0, guest: 0 },
+    boxHealth: { host: 300, guest: 300 }, shieldHealth: { host: 350, guest: 350 }
+  });
   const [gameOver, setGameOver] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const [popups, setPopups] = useState([]); // For +5HP animations
+  const [popups, setPopups] = useState([]);
 
   const myObj = useRef({ shooter: { x: 100, y: 640, rot: 0 }, shield: { x: 200, y: 560 }, box: { x: 300, y: 660 } });
   const enemyTarget = useRef({ shooter: { x: 300, y: 60, rot: 0 }, shield: { x: 200, y: 140 }, box: { x: 100, y: 40 } });
@@ -28,17 +31,20 @@ export default function GamePage() {
 
   const playHitSound = useCallback(() => {
     if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
     const osc = audioCtx.current.createOscillator();
     const g = audioCtx.current.createGain();
     osc.type = "sine"; osc.frequency.setValueAtTime(1000, audioCtx.current.currentTime);
-    g.gain.setValueAtTime(0.1, audioCtx.current.currentTime);
+    g.gain.setValueAtTime(0.05, audioCtx.current.currentTime);
     g.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + 0.1);
     osc.connect(g); g.connect(audioCtx.current.destination);
     osc.start(); osc.stop(audioCtx.current.currentTime + 0.1);
   }, []);
 
   useEffect(() => {
-    const s = io(SOCKET_URL); socket.current = s;
+    // FORCE WEBSOCKET for zero latency
+    const s = io(SOCKET_URL, { transports: ["websocket"], upgrade: false });
+    socket.current = s;
     s.emit("join_game", { roomId });
     s.on("assign_role", (d) => {
       setRole(d.role);
@@ -106,7 +112,6 @@ export default function GamePage() {
   };
 
   useEffect(() => {
-    if (!gameState) return;
     const ctx = canvasRef.current.getContext("2d");
     let frame;
     const render = () => {
@@ -125,7 +130,6 @@ export default function GamePage() {
           const b = list[i]; b.x += b.vx; b.y += b.vy;
           ctx.fillStyle = isEnemy ? "#f00" : "#0ff";
           ctx.beginPath(); ctx.arc(b.x, b.y, 3, 0, 7); ctx.fill();
-
           if (!isEnemy) {
             const hitS = gameState.shieldHealth[oppRole] > 0 && Math.hypot(b.x - enemyVis.current.shield.x, b.y - enemyVis.current.shield.y) < 40;
             const hitB = gameState.boxHealth[oppRole] > 0 && Math.hypot(b.x - enemyVis.current.box.x, b.y - enemyVis.current.box.y) < 25;
@@ -142,16 +146,13 @@ export default function GamePage() {
       const drawObj = (obj, col, isE, hKey) => {
         if (gameState.shieldHealth[hKey] > 0) {
           ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(obj.shield.x, obj.shield.y, 40, isE?0:Math.PI, isE?Math.PI:0); ctx.stroke();
-          ctx.fillStyle = "#fff"; ctx.fillText(Math.floor(gameState.shieldHealth[hKey]), obj.shield.x-10, obj.shield.y+(isE?-50:50));
         }
         if (gameState.boxHealth[hKey] > 0) {
           ctx.fillStyle = col; ctx.fillRect(obj.box.x-15, obj.box.y-15, 30, 30);
-          ctx.fillStyle = "#fff"; ctx.fillText(Math.floor(gameState.boxHealth[hKey]), obj.box.x-10, obj.box.y+(isE?-25:25));
         }
         ctx.save(); ctx.translate(obj.shooter.x, obj.shooter.y); ctx.rotate(obj.shooter.rot);
         ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, isE?20:-20); ctx.lineTo(-12, isE?-8:8); ctx.lineTo(12, isE?-8:8); ctx.fill();
         ctx.restore();
-        ctx.strokeStyle = "#444"; ctx.beginPath(); ctx.arc(obj.shooter.x, obj.shooter.y+(isE?-40:40), 12, 0, 7); ctx.stroke();
       };
       drawObj(myObj.current, "#0ff", false, role);
       drawObj(enemyVis.current, "#f00", true, oppRole);
@@ -160,25 +161,22 @@ export default function GamePage() {
     render(); return () => cancelAnimationFrame(frame);
   }, [gameState, role, roomId]);
 
-  if (!gameState || !role) return <div className="loading">Connecting...</div>;
-
-  const myH = gameState.health[role], myOH = gameState.overHealth[role];
-  const opH = gameState.health[role==='host'?'guest':'host'], opOH = gameState.overHealth[role==='host'?'guest':'host'];
+  if (!role) return <div className="loading">Connecting...</div>;
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch}>
       <div className="hud-top">
         <div className="hp-box">
-          <div className="bar-bg"><div className="fill red" style={{width: `${(opH/650)*100}%`}}/><div className="fill gold" style={{width: `${(opOH/300)*100}%`}}/></div>
-          <span>ENEMY: {Math.floor(opH+opOH)}</span>
+          <div className="bar-bg"><div className="fill red" style={{width: `${(gameState.health[role==='host'?'guest':'host']/650)*100}%`}}/></div>
+          <span>ENEMY: {Math.floor(gameState.health[role==='host'?'guest':'host'])}</span>
         </div>
         <div className="hp-box">
-          <div className="bar-bg"><div className="fill blue" style={{width: `${(myH/650)*100}%`}}/><div className="fill gold" style={{width: `${(myOH/300)*100}%`}}/></div>
-          <span>YOU: {Math.floor(myH+myOH)}</span>
-          {popups.map(p => <div key={p} className="lifesteal-pop">+5HP</div>)}
+          <div className="bar-bg"><div className="fill blue" style={{width: `${(gameState.health[role]/650)*100}%`}}/></div>
+          <span>YOU: {Math.floor(gameState.health[role])}</span>
         </div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
+      {countdown > 0 && <div className="countdown-overlay">{countdown}</div>}
       {gameOver && <div className={`end-scr ${gameOver}`}><h1>{gameOver==='win'?'VICTORY':'DEFEAT'}</h1><button onClick={()=>navigate("/")}>EXIT</button></div>}
     </div>
   );
