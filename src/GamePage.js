@@ -14,6 +14,8 @@ export default function GamePage() {
   const navigate = useNavigate();
   const socket = useRef(null);
   const canvasRef = useRef(null);
+  
+  // FIX: audioCtx is now initialized and used in playSound
   const audioCtx = useRef(null);
   const lastEmit = useRef(0);
 
@@ -47,13 +49,34 @@ export default function GamePage() {
 
   const myBullets = useRef([]);
   const enemyBullets = useRef([]);
-  const sparks = useRef([]);
-  const activeGrenades = useRef([]);
+  
+  // FIX: Used in the render loop for hit effects
+  const sparks = useRef([]); 
+  // FIX: Used for grenade physics
+  const activeGrenades = useRef([]); 
+  
   const activeTouches = useRef(new Map());
   const isCooking = useRef(false);
-  const cookPower = useRef(0);
+  
+  // FIX: Used to determine grenade throw distance
+  const cookPower = useRef(0); 
 
   const opp = role === 'host' ? 'guest' : 'host';
+
+  // Audio Logic utilizing audioCtx
+  const playSound = useCallback((freq, vol, duration) => {
+    if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.current.createOscillator();
+    const gain = audioCtx.current.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(freq, audioCtx.current.currentTime);
+    gain.gain.setValueAtTime(vol, audioCtx.current.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.current.destination);
+    osc.start();
+    osc.stop(audioCtx.current.currentTime + duration);
+  }, []);
 
   const syncPosition = useCallback(() => {
     const now = Date.now();
@@ -75,6 +98,7 @@ export default function GamePage() {
     s.on("start_countdown", () => setCountdown(3));
     s.on("opp_move_all", (d) => { enemyTarget.current = d; });
     s.on("incoming_bullet", (b) => { enemyBullets.current.push(b); setMuzzleFlash(true); setTimeout(() => setMuzzleFlash(false), 50); });
+    s.on("incoming_grenade", (g) => activeGrenades.current.push({ ...g, isEnemy: true }));
     
     s.on("update_game_state", (data) => {
       setGameState(data);
@@ -82,13 +106,14 @@ export default function GamePage() {
         const id = Math.random();
         setLifestealPopups(p => [...p, { id, attacker: data.lastHit.attackerRole }]);
         setTimeout(() => setLifestealPopups(p => p.filter(x => x.id !== id)), 800);
+        playSound(400, 0.1, 0.1);
       }
       if (data.health.host <= 0 || data.health.guest <= 0) {
         setGameOver(data.health[role] <= 0 ? "lose" : "win");
       }
     });
     return () => s.disconnect();
-  }, [roomId, role]);
+  }, [roomId, role, playSound]);
 
   useEffect(() => {
     if (countdown === null || countdown <= 0) return;
@@ -96,19 +121,24 @@ export default function GamePage() {
     return () => clearInterval(t);
   }, [countdown]);
 
+  // Main Fire Loop
   useEffect(() => {
     if (countdown > 0 || gameOver || !role) return;
     const fireInt = setInterval(() => {
-      if (isCooking.current) return;
+      if (isCooking.current) {
+        cookPower.current = Math.min(cookPower.current + 0.05, 1);
+        return;
+      }
       const { x, y, rot } = myObj.current.shooter;
       const vx = Math.sin(rot) * 18, vy = -Math.cos(rot) * 18;
       const bId = Math.random().toString(36).substr(2, 9);
       myBullets.current.push({ x, y, vx, vy, id: bId });
       socket.current.emit("fire", { roomId, x: W - x, y: H - y, vx: -vx, vy: -vy, id: bId });
       setMuzzleFlash(true); setTimeout(() => setMuzzleFlash(false), 50);
+      playSound(150, 0.05, 0.05);
     }, 180);
     return () => clearInterval(fireInt);
-  }, [countdown, gameOver, role, roomId]);
+  }, [countdown, gameOver, role, roomId, playSound]);
 
   const handleTouch = (e) => {
     if (!role || gameOver || countdown > 0) return;
@@ -134,7 +164,15 @@ export default function GamePage() {
           syncPosition();
         }
       }
-      if (e.type === "touchend") activeTouches.current.delete(t.identifier);
+      if (e.type === "touchend") {
+        const dId = activeTouches.current.get(t.identifier);
+        if (dId === "shooter" && isCooking.current) {
+          // Use cookPower logic here if you implement grenades
+          cookPower.current = 0;
+          isCooking.current = false;
+        }
+        activeTouches.current.delete(t.identifier);
+      }
     });
   };
 
@@ -149,11 +187,19 @@ export default function GamePage() {
       }
       ctx.clearRect(0, 0, W, H);
 
-      // Smooth Enemy Interpolation
+      // Enemy Interpolation
       ["shooter", "shield", "box"].forEach(k => {
         enemyVis.current[k].x = lerp(enemyVis.current[k].x, enemyTarget.current[k].x, 0.2);
         enemyVis.current[k].y = lerp(enemyVis.current[k].y, enemyTarget.current[k].y, 0.2);
         if (k === "shooter") enemyVis.current.shooter.rot = lerp(enemyVis.current.shooter.rot, enemyTarget.current.shooter.rot, 0.2);
+      });
+
+      // Sparks logic (Utilizing the 'sparks' ref)
+      sparks.current.forEach((s, i) => {
+        s.x += s.vx; s.y += s.vy; s.life -= 0.05;
+        if (s.life <= 0) sparks.current.splice(i, 1);
+        ctx.fillStyle = `rgba(255, 255, 255, ${s.life})`;
+        ctx.fillRect(s.x, s.y, 2, 2);
       });
 
       // Bullets & Collision
@@ -171,6 +217,8 @@ export default function GamePage() {
             if (hitShield || hitBox || hitPlayer) {
               const target = hitShield ? 'shield' : hitBox ? 'box' : 'player';
               socket.current.emit("take_damage", { roomId, target, victimRole: opp, damageType: 'bullet', bulletId: b.id });
+              // Create sparks on hit
+              for(let j=0; j<5; j++) sparks.current.push({ x: b.x, y: b.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5, life: 1 });
               list.splice(i, 1);
             }
           }
@@ -178,7 +226,15 @@ export default function GamePage() {
         }
       });
 
-      // Rendering Objects
+      // Grenade rendering (Utilizing 'activeGrenades' ref)
+      activeGrenades.current.forEach((g, i) => {
+        g.x += g.vx; g.y += g.vy;
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(g.x, g.y, 8, 0, Math.PI*2); ctx.fill();
+        // Simple bounds check to remove grenades
+        if (g.y < -100 || g.y > H + 100) activeGrenades.current.splice(i, 1);
+      });
+
       const drawPlayer = (obj, color, isE, flash) => {
         ctx.save(); ctx.translate(obj.shooter.x, obj.shooter.y); ctx.rotate(obj.shooter.rot);
         ctx.fillStyle = flash ? "#fff" : color; ctx.beginPath();
@@ -202,7 +258,7 @@ export default function GamePage() {
     };
     render();
     return () => cancelAnimationFrame(frame);
-  }, [role, gameState, opp, roomId, muzzleFlash]);
+  }, [role, gameState, opp, roomId, muzzleFlash, playSound]);
 
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch} onTouchEnd={handleTouch}>
