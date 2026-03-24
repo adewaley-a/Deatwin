@@ -20,7 +20,7 @@ export default function GamePage() {
   });
   const [gameOver, setGameOver] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const [popups, setPopups] = useState([]);
+  const [rematchSent, setRematchSent] = useState(false);
 
   const myObj = useRef({ shooter: { x: 100, y: 640, rot: 0 }, shield: { x: 200, y: 560 }, box: { x: 300, y: 660 } });
   const enemyTarget = useRef({ shooter: { x: 300, y: 60, rot: 0 }, shield: { x: 200, y: 140 }, box: { x: 100, y: 40 } });
@@ -42,27 +42,23 @@ export default function GamePage() {
   }, []);
 
   useEffect(() => {
-    // FORCE WEBSOCKET for zero latency
-    const s = io(SOCKET_URL, { transports: ["websocket"], upgrade: false });
+    const s = io(SOCKET_URL, { transports: ["websocket"] });
     socket.current = s;
     s.emit("join_game", { roomId });
     s.on("assign_role", (d) => {
       setRole(d.role);
       if (d.role === 'guest') { myObj.current.shooter.x = 300; myObj.current.box.x = 100; }
     });
-    s.on("start_countdown", () => setCountdown(3));
+    s.on("start_countdown", () => {
+      setCountdown(3);
+      setGameOver(null);
+      setRematchSent(false);
+    });
     s.on("opp_move_all", (d) => { enemyTarget.current = d; });
     s.on("incoming_bullet", (b) => enemyBullets.current.push(b));
     s.on("update_game_state", (data) => {
       setGameState(data);
-      if (data.lastHit) {
-        playHitSound();
-        if (data.lastHit.target === 'box' && data.lastHit.attacker === role) {
-          const id = Math.random();
-          setPopups(prev => [...prev, id]);
-          setTimeout(() => setPopups(prev => prev.filter(p => p !== id)), 600);
-        }
-      }
+      if (data.lastHit) playHitSound();
       const opp = role === 'host' ? 'guest' : 'host';
       if (data.health[role] <= 0) setGameOver("lose");
       else if (data.health[opp] <= 0) setGameOver("win");
@@ -112,11 +108,11 @@ export default function GamePage() {
   };
 
   useEffect(() => {
+    if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     let frame;
     const render = () => {
       ctx.clearRect(0, 0, W, H);
-      ctx.strokeStyle = "#222"; ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
       const oppRole = role === 'host' ? 'guest' : 'host';
       
       ["shooter", "shield", "box"].forEach(k => {
@@ -166,18 +162,20 @@ export default function GamePage() {
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch}>
       <div className="hud-top">
-        <div className="hp-box">
-          <div className="bar-bg"><div className="fill red" style={{width: `${(gameState.health[role==='host'?'guest':'host']/650)*100}%`}}/></div>
-          <span>ENEMY: {Math.floor(gameState.health[role==='host'?'guest':'host'])}</span>
-        </div>
-        <div className="hp-box">
-          <div className="bar-bg"><div className="fill blue" style={{width: `${(gameState.health[role]/650)*100}%`}}/></div>
-          <span>YOU: {Math.floor(gameState.health[role])}</span>
-        </div>
+        <div className="hp-box"><span>ENEMY: {Math.floor(gameState.health[role==='host'?'guest':'host'])}</span></div>
+        <div className="hp-box"><span>YOU: {Math.floor(gameState.health[role])}</span></div>
       </div>
       <canvas ref={canvasRef} width={W} height={H} />
       {countdown > 0 && <div className="countdown-overlay">{countdown}</div>}
-      {gameOver && <div className={`end-scr ${gameOver}`}><h1>{gameOver==='win'?'VICTORY':'DEFEAT'}</h1><button onClick={()=>navigate("/")}>EXIT</button></div>}
+      {gameOver && (
+        <div className={`end-scr ${gameOver}`}>
+          <h1>{gameOver==='win'?'VICTORY':'DEFEAT'}</h1>
+          <button onClick={() => { setRematchSent(true); socket.current.emit("request_rematch", { roomId, role }); }} disabled={rematchSent}>
+            {rematchSent ? "WAITING..." : "REMATCH"}
+          </button>
+          <button onClick={()=>navigate("/")}>EXIT</button>
+        </div>
+      )}
     </div>
   );
 }

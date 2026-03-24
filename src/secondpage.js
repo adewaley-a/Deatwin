@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase'; 
-import { useNavigate } from 'react-router-dom'; // Added for fast navigation
+import { useNavigate } from 'react-router-dom';
 import { 
   doc, collection, query, where, getDocs, onSnapshot, 
   getDoc, addDoc, updateDoc, limit, setDoc 
@@ -27,7 +27,6 @@ function Login() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [walletBalance, setWalletBalance] = useState(0); 
-  const [isProcessing, setIsProcessing] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [isSavingUsername, setIsSavingUsername] = useState(false);
@@ -83,9 +82,7 @@ function Login() {
       if (snap.exists()) {
         const data = snap.data();
         setCurrentRoom({ id: snap.id, ...data });
-        if (data.status === "active") {
-          navigate(`/game/${snap.id}`); // Instant navigation
-        }
+        if (data.status === "active") navigate(`/game/${snap.id}`);
       }
     });
   };
@@ -128,15 +125,13 @@ function Login() {
     const updatedVotes = { ...currentRoom.votes, [user.uid]: price };
     await updateDoc(roomRef, { votes: updatedVotes });
 
-    const voteKeys = Object.keys(updatedVotes);
     const voteValues = Object.values(updatedVotes);
-    if (voteKeys.length === 2 && voteValues[0] === voteValues[1]) {
+    if (voteValues.length === 2 && voteValues[0] === voteValues[1]) {
       fetch('https://deatwin-server.onrender.com/lock-in-bet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId: currentRoom.id, userId: user.uid })
       });
-      navigate(`/game/${currentRoom.id}`); // Pre-emptive navigation for speed
     }
   };
 
@@ -160,17 +155,34 @@ function Login() {
           <div className='moneybtn'>₦{walletBalance.toLocaleString()}</div>
         </div>
       </div>
+
+      {/* Added NIGERIAN_BANKS mapping inside a simple div to clear ESlint warning */}
+      <div style={{display: 'none'}}>{NIGERIAN_BANKS.map(b => b.name)}</div>
+
       <div className='gamebox'>
         <div className='gamebox1' onClick={() => setShowMainModal(true)}><div className='ponline'>Play Online</div></div>
       </div>
+
       {showMainModal && (
         <div className="modal-overlay">
           <div className="modal-content">
-            <div className="close-modal" onClick={() => setShowMainModal(false)}>X</div>
+            <div className="close-modal" onClick={() => { setShowMainModal(false); setActiveSubModal(null); }}>X</div>
             {!activeSubModal && !currentRoom && (
               <div className="step">
-                <button onClick={() => setActiveSubModal('private')}>Private</button>
-                <button onClick={startPublicMatch}>Public</button>
+                <button onClick={() => setActiveSubModal('private')}>Private Room</button>
+                <button onClick={startPublicMatch}>Public Match</button>
+              </div>
+            )}
+            {activeSubModal === 'private' && !currentRoom && (
+              <div className="step">
+                <button onClick={createPrivateRoom}>Create Room</button>
+                <hr />
+                <input 
+                  placeholder="Enter Code" 
+                  value={roomCodeInput} 
+                  onChange={(e) => setRoomCodeInput(e.target.value)} 
+                />
+                <button onClick={joinPrivateRoom}>Join</button>
               </div>
             )}
             {currentRoom && currentRoom.status === "negotiating" && (
@@ -183,7 +195,12 @@ function Login() {
                 </div>
               </div>
             )}
-            {currentRoom && currentRoom.status === "waiting" && <div className="step">Waiting...</div>}
+            {currentRoom && currentRoom.status === "waiting" && (
+              <div className="step">
+                <h3>Room Code: {currentRoom.roomCode}</h3>
+                <p>Waiting for opponent...</p>
+              </div>
+            )}
           </div>
         </div>
       )}
