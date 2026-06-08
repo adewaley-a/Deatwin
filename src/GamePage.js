@@ -58,7 +58,13 @@ export default function GamePage() {
     s.on("incoming_bullet", (b) => enemyBullets.current.push(b));
     s.on("update_game_state", (data) => {
       setGameState(data);
-      if (data.lastHit) playHitSound();
+      if (data.lastHit) {
+        playHitSound();
+        // Cross-side absorption: clean up bullet on impact signal
+        if (data.lastHit.bulletId) {
+          enemyBullets.current = enemyBullets.current.filter(b => b.id !== data.lastHit.bulletId);
+        }
+      }
       const opp = role === 'host' ? 'guest' : 'host';
       if (data.health[role] <= 0) setGameOver("lose");
       else if (data.health[opp] <= 0) setGameOver("win");
@@ -159,13 +165,28 @@ export default function GamePage() {
 
   if (!role) return <div className="loading">Connecting...</div>;
 
+  const oppRole = role === 'host' ? 'guest' : 'host';
+
   return (
     <div className="game-container" onTouchStart={handleTouch} onTouchMove={handleTouch}>
       <div className="hud-top">
-        <div className="hp-box"><span>ENEMY: {Math.floor(gameState.health[role==='host'?'guest':'host'])}</span></div>
-        <div className="hp-box"><span>YOU: {Math.floor(gameState.health[role])}</span></div>
+        <div className="hp-box target-enemy">
+          <span>ENEMY: {Math.floor(gameState.health[oppRole])}</span>
+          {gameState.overHealth[oppRole] > 0 && <span className="oh-label"> (+{Math.floor(gameState.overHealth[oppRole])})</span>}
+        </div>
       </div>
-      <canvas ref={canvasRef} width={W} height={H} />
+
+      <div className="canvas-wrapper">
+        <canvas ref={canvasRef} width={W} height={H} />
+      </div>
+
+      <div className="hud-bottom-player">
+        <div className="hp-box target-self">
+          <span>YOU: {Math.floor(gameState.health[role])}</span>
+          {gameState.overHealth[role] > 0 && <span className="oh-label gold-text"> (+{Math.floor(gameState.overHealth[role])})</span>}
+        </div>
+      </div>
+
       {countdown > 0 && <div className="countdown-overlay">{countdown}</div>}
       {gameOver && (
         <div className={`end-scr ${gameOver}`}>
